@@ -5,4 +5,4 @@ data/users.json
 data/user-data.json
 
 .DS_Store
-.env
+.env　

@@ -14,7 +14,7 @@
       "favorite": false
     },
     "1790255553942-3": {
-      "owned": false
+      "owned": true
     },
     "1790255553942-5": {
       "owned": true
@@ -50,7 +50,8 @@
       "owned": false
     },
     "1790255553942-7": {
-      "favorite": false
+      "favorite": false,
+      "owned": true
     },
     "1790255553955-46": {
       "favorite": true,
@@ -74,6 +75,12 @@
       "owned": true
     },
     "1790255553955-46": {
+      "owned": true
+    },
+    "1790255553943-29": {
+      "owned": true
+    },
+    "1790255553943-30": {
       "owned": true
     }
   }
