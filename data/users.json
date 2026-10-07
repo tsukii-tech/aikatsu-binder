@@ -1,0 +1,22 @@
+[
+  {
+    "id": "87df9d5a2792f7aa07ed629eac1465eb",
+    "username": "ゆき",
+    "salt": "9cd162e264dbf58a2580dc866ea85fd9",
+    "hash": "75415e987a7b878a460bd85db0be28fb91e38cc517a79caaae195735a8605d0c4498b104151323dc512aad1d36294beb696c6f565bfe268b156104e19b95597a",
+    "createdAt": 1790410111933,
+    "updatedAt": 1790814579131,
+    "color": "orange",
+    "icon": "club"
+  },
+  {
+    "id": "1b446ad1c7b41888bb7d3443b5cae086",
+    "username": "つきは",
+    "salt": "1e1bff646e18a574fdb49dcfe632fda9",
+    "hash": "8027262d4dd9d5304387ab93d84fbb067acd340ef66876c2f9a7a8ddf73b563652041929eb8d8aa9095a7f5f3845adfd8408b99d58c55a9547efcb3a8dafd9c6",
+    "createdAt": 1790483114732,
+    "updatedAt": 1790814592173,
+    "color": "purple",
+    "icon": "diamond"
+  }
+]

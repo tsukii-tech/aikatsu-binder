@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アイカツ！バインダー 管理サイト</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<header>
+  <h1 class="header-title">👑 アイカツ！バインダー 管理サイト</h1>
+</header>
+
+<div class="container">
+  <!-- パソコン以外からのアクセス -->
+  <div id="pc-gate" class="admin-gate" style="display:none">
+    <h2>パソコンからご利用ください</h2>
+    <p>管理者機能は、パソコンのブラウザからのみ利用できます。スマートフォン・タブレットでは開けません。</p>
+  </div>
+
+  <!-- ログイン／初期設定 -->
+  <div id="login-gate" class="admin-gate" style="display:none">
+    <h2 id="login-title"></h2>
+    <div id="login-body"></div>
+  </div>
+
+  <!-- 管理者アプリ本体 -->
+  <div id="admin-app" style="display:none">
+    <div class="admin-tabs">
+      <button class="admin-tab-btn active" data-sub="list">カード設定・管理リスト</button>
+      <button class="admin-tab-btn" data-sub="data">データ追加・更新</button>
+      <button class="admin-tab-btn" data-sub="users">ユーザー管理</button>
+      <button class="admin-tab-btn" data-sub="account">アカウント情報</button>
+    </div>
+    <div class="admin-panel">
+      <div class="admin-sub show" id="admin-sub-list"></div>
+      <div class="admin-sub" id="admin-sub-data"></div>
+      <div class="admin-sub" id="admin-sub-users"></div>
+      <div class="admin-sub" id="admin-sub-account"></div>
+    </div>
+  </div>
+</div>
+
+<!-- カード編集 -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-body">
+    <h3 id="edit-title" style="margin-top:0;color:#8e24aa">カードの編集</h3>
+    <form id="edit-form">
+      <input type="hidden" id="ef-id">
+      <div class="form-group"><label>ID（カード番号）</label><input id="ef-no" class="form-control" placeholder="例: E1-03_PR" required></div>
+      <div class="form-group"><label>カード名</label><input id="ef-name" class="form-control" placeholder="空欄ならIDを表示"></div>
+      <div class="form-group"><label>タイプ</label><div class="chip-row" id="ef-type-chips"></div></div>
+      <div class="form-group"><label>服の種類</label><div class="chip-row" id="ef-cat-chips"></div></div>
+      <div class="form-group"><label>表面の画像URL</label><input id="ef-img" class="form-control"></div>
+      <div class="form-group"><label>裏面の画像URL</label><input id="ef-imgback" class="form-control"></div>
+      <div class="form-group"><label>アピール値 (AP・任意)</label><input type="number" id="ef-ap" class="form-control" value="400" min="0" max="9999"></div>
+      <p style="font-size:.78rem;color:#999;margin-top:-8px">QRコード・所持状況は管理者からは変更できません（一般ユーザーが自分でバインダー画面から入力します）。</p>
+      <div style="display:flex;gap:10px">
+        <button type="submit" class="btn-submit">保存する</button>
+        <button type="button" class="btn-submit neutral" id="ef-cancel">キャンセル</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const TYPE_LIST = ['cute', 'cool', 'sexy', 'pop'];
+const TYPE_JA = { cute: 'キュート', cool: 'クール', sexy: 'セクシー', pop: 'ポップ' };
+const CAT_LIST = ['トップス', 'ボトムス', 'トップス&ボトムス', 'シューズ', 'アクセサリー', 'パラレルカード'];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let cards = [];
+let admin = { hasPassword: false, authed: false, pc: false };
+
+/* ---------- API ---------- */
+async function api(path, method = 'GET', body) {
+  const r = await fetch('/api/' + path, { method, headers: { 'Content-Type': 'application/json' }, body: body !== undefined ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'エラーが発生しました');
+  return data;
+}
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+/* ---------- 画像フォールバック（カード一覧のサムネイル用） ---------- */
+const PH_COL = { cute: '#ffb6c1', cool: '#87cefa', sexy: '#e0b0ff', pop: '#ffe066' };
+const PH_ICO = { 'トップス': '👚', 'ボトムス': '👗', 'トップス&ボトムス': '👗', 'シューズ': '👠', 'アクセサリー': '🎀', 'パラレルカード': '✨' };
+const ph = (t, c) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="${PH_COL[t] || '#eee'}"/><text x="150" y="185" font-size="110" text-anchor="middle">${PH_ICO[c] || '🎴'}</text></svg>`);
+const imgAttrs = (c) => {
+  const raw = /^https?:/.test(c.img || '') ? c.img : '';
+  return `data-type="${esc(c.type)}" data-cat="${esc(c.category)}" data-raw="${esc(raw)}" referrerpolicy="no-referrer" src="${esc(c.img) || ph(c.type, c.category)}"`;
+};
+document.addEventListener('error', (e) => {
+  const im = e.target; if (im.tagName !== 'IMG') return;
+  const stage = +(im.dataset.fb || 0);
+  if (stage === 0 && im.dataset.raw) { im.dataset.fb = 1; im.src = '/img?u=' + encodeURIComponent(im.dataset.raw); }
+  else if (stage < 2) { im.dataset.fb = 2; im.src = ph(im.dataset.type, im.dataset.cat); }
+}, true);
+
+/* ---------- 画面切り替え（PC以外／未ログイン／管理者アプリ） ---------- */
+function renderGate() {
+  $('#pc-gate').style.display = admin.pc ? 'none' : '';
+  $('#login-gate').style.display = admin.pc && !admin.authed ? '' : 'none';
+  $('#admin-app').style.display = admin.pc && admin.authed ? '' : 'none';
+  if (admin.pc && !admin.authed) renderLoginForm();
+}
+async function refreshAdminStatus() {
+  try { admin = await api('admin/status'); } catch { admin = { hasPassword: false, authed: false, pc: false }; }
+}
+
+function renderLoginForm() {
+  const setup = !admin.hasPassword;
+  $('#login-title').textContent = setup ? '管理者パスワードの初期設定' : '管理者ログイン';
+  $('#login-body').innerHTML = setup ? `
+    <p style="font-size:.85rem;color:#555;line-height:1.7;text-align:left">最初に管理者パスワードを設定してください。パスワードは12文字以上にし、他のサービスと使い回さない強いものを使ってください。<br>
+    パスワード生成ツール（各ブラウザやパスワード管理アプリの「パスワード生成」機能など）で作った文字列の利用をおすすめします。設定したパスワードはハッシュ化して保存され、平文では保存されません。</p>
+    <div class="form-group"><label>新しいパスワード（12文字以上）</label><input type="password" id="lg-pw1" class="form-control" autocomplete="new-password"></div>
+    <div class="form-group"><label>確認のため再入力</label><input type="password" id="lg-pw2" class="form-control" autocomplete="new-password"></div>
+    <button class="btn-submit secondary" id="lg-submit">設定してログイン</button>
+  ` : `
+    <div class="form-group"><label>管理者パスワード</label><input type="password" id="lg-pw1" class="form-control" autocomplete="current-password"></div>
+    <button class="btn-submit secondary" id="lg-submit">ログイン</button>
+  `;
+  $('#lg-submit').onclick = async () => {
+    const pw1 = $('#lg-pw1').value;
+    try {
+      if (setup) {
+        const pw2 = $('#lg-pw2').value;
+        if (pw1.length < 12) return toast('パスワードは12文字以上にしてください');
+        if (pw1 !== pw2) return toast('確認用パスワードが一致しません');
+        await api('admin/setup', 'POST', { password: pw1 });
+      } else {
+        await api('admin/login', 'POST', { password: pw1 });
+      }
+      await refreshAdminStatus();
+      renderGate();
+      if (admin.authed) { await loadCardsAndRenderApp(); toast(setup ? '設定してログインしました' : 'ログインしました'); }
+    } catch (err) { toast(err.message); }
+  };
+}
+async function doLogout() {
+  try { await api('admin/logout', 'POST'); } catch {}
+  admin.authed = false; cards = [];
+  renderGate();
+  toast('ログアウトしました');
+}
+
+/* ---------- 管理者タブ ---------- */
+function renderAdminTab() {
+  $$('.admin-tab-btn').forEach((b) => b.onclick = () => {
+    $$('.admin-tab-btn').forEach((x) => x.classList.toggle('active', x === b));
+    $$('.admin-sub').forEach((x) => x.classList.toggle('show', x.id === 'admin-sub-' + b.dataset.sub));
+  });
+  renderAdminList(); renderAdminData(); renderAdminUsers(); renderAdminAccount();
+}
+
+/* --- チップ共通 --- */
+function chipRow(container, list, labelFn, value) {
+  container.innerHTML = list.map((v) => `<div class="chip${v === value ? ' sel' : ''}" data-v="${esc(v)}">${esc(labelFn(v))}</div>`).join('');
+}
+function chipValue(container) { return $('.chip.sel', container)?.dataset.v; }
+
+/* --- カード編集モーダル --- */
+$('#ef-type-chips').addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) $$('.chip', $('#ef-type-chips')).forEach((x) => x.classList.toggle('sel', x === c)); });
+$('#ef-cat-chips').addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) $$('.chip', $('#ef-cat-chips')).forEach((x) => x.classList.toggle('sel', x === c)); });
+function openEditModal(card) {
+  $('#ef-id').value = card?.id || ''; $('#ef-no').value = card?.no || ''; $('#ef-name').value = card?.name || '';
+  $('#ef-img').value = card?.img || ''; $('#ef-imgback').value = card?.imgBack || ''; $('#ef-ap').value = card?.ap ?? 400;
+  chipRow($('#ef-type-chips'), TYPE_LIST, (v) => TYPE_JA[v], card?.type || 'cute');
+  chipRow($('#ef-cat-chips'), CAT_LIST, (v) => v, card?.category || 'トップス');
+  $('#edit-title').textContent = card ? 'カードの編集' : '新規カードの登録';
+  $('#edit-modal').classList.add('active');
+}
+$('#ef-cancel').onclick = () => $('#edit-modal').classList.remove('active');
+$('#edit-modal').onclick = (e) => e.target.id === 'edit-modal' && $('#edit-modal').classList.remove('active');
+$('#edit-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const id = $('#ef-id').value;
+  const body = {
+    no: $('#ef-no').value.trim(), name: $('#ef-name').value.trim() || $('#ef-no').value.trim(),
+    type: chipValue($('#ef-type-chips')) || 'cute', category: chipValue($('#ef-cat-chips')) || 'トップス',
+    img: $('#ef-img').value.trim(), imgBack: $('#ef-imgback').value.trim(), ap: +$('#ef-ap').value || 400,
+  };
+  if (!body.no) return toast('IDを入力してください');
+  try {
+    const saved = id ? await api('cards/' + id, 'PUT', body) : await api('cards', 'POST', body);
+    cards = id ? cards.map((c) => (c.id === id ? saved : c)) : [...cards, saved];
+    $('#edit-modal').classList.remove('active'); renderAdminList();
+    toast('保存しました ✨');
+  } catch (err) { toast(err.message); }
+};
+
+/* --- カード設定・管理リスト --- */
+function renderAdminList() {
+  const box = $('#admin-sub-list'); if (!box) return;
+  box.innerHTML = `<input type="text" id="al-search" class="form-control admin-search" placeholder="ID・名前で検索"><div id="al-rows"></div>`;
+  const draw = () => {
+    const q = ($('#al-search').value || '').toLowerCase();
+    const list = cards.filter((c) => (c.name + ' ' + c.no).toLowerCase().includes(q));
+    $('#al-rows').innerHTML = list.length ? '' : '<p style="color:#aaa">該当するカードがありません</p>';
+    list.forEach((c) => {
+      const row = document.createElement('div'); row.className = 'admin-list-row'; row.dataset.id = c.id;
+      row.innerHTML = `
+        <img class="admin-thumb" ${imgAttrs(c)} alt="">
+        <div>
+          <div class="admin-row-head">
+            <span>${esc(c.no || '(ID未設定)')}</span>
+            ${c.series ? `<span class="series-pill">${esc(c.series)}</span>` : ''}
+          </div>
+          <div style="font-size:.8rem;color:#666;margin-bottom:6px">${esc(c.name)}</div>
+          <div class="chip-row" data-type-row>${TYPE_LIST.map((v) => `<div class="chip${v === c.type ? ' sel' : ''}" data-v="${v}">${TYPE_JA[v]}</div>`).join('')}</div>
+          <div class="chip-row" data-cat-row>${CAT_LIST.map((v) => `<div class="chip${v === c.category ? ' sel' : ''}" data-v="${esc(v)}">${esc(v)}</div>`).join('')}</div>
+          <div class="admin-row-actions">
+            <button class="mini-btn mini-edit" data-a="edit">くわしく編集</button>
+            <button class="mini-btn mini-del" data-a="del">削除</button>
+          </div>
+        </div>`;
+      $('#al-rows').appendChild(row);
+    });
+  };
+  draw();
+  $('#al-search').oninput = draw;
+  $('#al-rows').addEventListener('click', async (e) => {
+    const row = e.target.closest('.admin-list-row'); if (!row) return;
+    const id = row.dataset.id, card = cards.find((c) => c.id === id); if (!card) return;
+    const typeChip = e.target.closest('[data-type-row] .chip');
+    const catChip = e.target.closest('[data-cat-row] .chip');
+    try {
+      if (typeChip) { const saved = await api('cards/' + id, 'PUT', { type: typeChip.dataset.v }); cards = cards.map((c) => (c.id === id ? saved : c)); draw(); return; }
+      if (catChip) { const saved = await api('cards/' + id, 'PUT', { category: catChip.dataset.v }); cards = cards.map((c) => (c.id === id ? saved : c)); draw(); return; }
+      if (e.target.closest('[data-a="edit"]')) return openEditModal(card);
+      if (e.target.closest('[data-a="del"]') && confirm(`「${card.name}」を削除しますか？`)) {
+        await api('cards/' + id, 'DELETE'); cards = cards.filter((c) => c.id !== id); draw(); toast('削除しました');
+      }
+    } catch (err) { toast(err.message); }
+  });
+}
+
+/* --- データ追加・更新 --- */
+function renderAdminData() {
+  const box = $('#admin-sub-data'); if (!box) return;
+  box.innerHTML = `
+    <h3 style="margin-top:0;color:#8e24aa">新規カードを手動登録</h3>
+    <div class="form-group"><label>ID（カード番号）</label><input id="nc-no" class="form-control" placeholder="例: E1-03_PR"></div>
+    <div class="form-group"><label>タイプ</label><div class="chip-row" id="nc-type-chips"></div></div>
+    <div class="form-group"><label>服の種類</label><div class="chip-row" id="nc-cat-chips"></div></div>
+    <div class="form-group"><label>表面の画像URL</label><input id="nc-img" class="form-control"></div>
+    <button class="btn-submit secondary" id="nc-submit" style="margin-bottom:10px">カードを追加</button>
+
+    <hr style="margin:25px 0;border:0;border-top:1px solid #eee">
+    <h3>公式カードリスト インポート（HTML貼り付け）</h3>
+    <p style="font-size:.85rem;color:#555">公式のカードリストをブラウザで開き、開発者ツール（F12）で &lt;html&gt; を右クリック→「コピー」→「outerHTMLをコピー」して、下に貼り付けてください。取り込んだカードのタイプ・服の種類は、上の「カード設定・管理リスト」でチップを押して設定してください。</p>
+    <textarea id="im-html" class="form-control" rows="5" placeholder="ページのHTMLを貼り付け"></textarea>
+    <button class="btn-submit secondary" id="im-html-btn" style="margin-top:10px">HTMLから取り込み</button>
+
+    <hr style="margin:25px 0;border:0;border-top:1px solid #eee">
+    <h3>カードを整理</h3>
+    <p style="font-size:.85rem;color:#555">「ID 表面」「ID 裏面」を1枚に統合し、重複を削除して番号順に並べ替えます。</p>
+    <button class="btn-submit secondary" id="tidy-btn">カードを整理</button>
+
+    <hr style="margin:25px 0;border:0;border-top:1px solid #eee">
+    <h3>データバックアップ / 復元</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="nav-btn" id="export-btn">JSONダウンロード</button>
+      <input type="file" id="import-file" accept=".json" hidden>
+      <button class="nav-btn" id="restore-btn">JSONファイル読込</button>
+    </div>
+
+    <hr style="margin:25px 0;border:0;border-top:1px solid #eee">
+    <h3 style="color:#d32f2f">全て削除</h3>
+    <p style="font-size:.85rem;color:#555">登録されているカードをすべて削除します。元に戻せないので、先に「JSONダウンロード」でバックアップを取ってください。</p>
+    <button class="btn-submit danger" id="delete-all-btn">全てのカードを削除</button>
+  `;
+  chipRow($('#nc-type-chips'), TYPE_LIST, (v) => TYPE_JA[v], 'cute');
+  chipRow($('#nc-cat-chips'), CAT_LIST, (v) => v, 'トップス');
+  $('#nc-type-chips').onclick = (e) => { const c = e.target.closest('.chip'); if (c) $$('.chip', $('#nc-type-chips')).forEach((x) => x.classList.toggle('sel', x === c)); };
+  $('#nc-cat-chips').onclick = (e) => { const c = e.target.closest('.chip'); if (c) $$('.chip', $('#nc-cat-chips')).forEach((x) => x.classList.toggle('sel', x === c)); };
+  $('#nc-submit').onclick = async () => {
+    const no = $('#nc-no').value.trim(); if (!no) return toast('IDを入力してください');
+    try {
+      const saved = await api('cards', 'POST', { no, name: no, type: chipValue($('#nc-type-chips')), category: chipValue($('#nc-cat-chips')), img: $('#nc-img').value.trim() });
+      cards.push(saved); renderAdminList();
+      $('#nc-no').value = ''; $('#nc-img').value = ''; toast('カードを追加しました ✨');
+    } catch (err) { toast(err.message); }
+  };
+  async function runImport(btn, label, payload) {
+    btn.disabled = true; btn.textContent = '処理中...';
+    try { const r = await api('import', 'POST', payload); cards = r.cards; renderAdminList(); toast(`${r.added}枚追加・${r.updated}枚更新しました`); }
+    catch (err) { toast(err.message); }
+    btn.disabled = false; btn.textContent = label;
+  }
+  $('#im-html-btn').onclick = () => { const html = $('#im-html').value.trim(); if (!html) return toast('HTMLを貼り付けてください'); runImport($('#im-html-btn'), 'HTMLから取り込み', { html }); };
+  $('#tidy-btn').onclick = async () => {
+    try { const r = await api('tidy', 'POST', {}); cards = r.cards; renderAdminList(); toast(`整理しました（${r.removed}枚を統合・削除）`); } catch (err) { toast(err.message); }
+  };
+  $('#delete-all-btn').onclick = async () => {
+    if (!cards.length) return toast('削除するカードがありません');
+    if (!confirm(`登録されている ${cards.length} 枚のカードをすべて削除します。元に戻せません。よろしいですか？`)) return;
+    try { await api('cards', 'DELETE'); cards = []; renderAdminList(); toast('すべてのカードを削除しました'); } catch (err) { toast(err.message); }
+  };
+  $('#export-btn').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(cards, null, 2)], { type: 'application/json' }));
+    a.download = 'aikatsu_cards_backup.json'; a.click();
+  };
+  $('#restore-btn').onclick = () => $('#import-file').click();
+  $('#import-file').onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = async () => {
+      try { cards = await api('restore', 'POST', JSON.parse(rd.result)); renderAdminList(); toast('データを復元しました'); }
+      catch { toast('読み込みに失敗しました'); }
+    };
+    rd.readAsText(f); e.target.value = '';
+  };
+}
+
+/* --- ユーザー管理（一般ユーザーの発行・管理） --- */
+function renderAdminUsers() {
+  const box = $('#admin-sub-users'); if (!box) return;
+  const COLOR_INFO = {
+    pink:   { label: 'ピンク', color: '#e91e63', soft: '#fce4ec' },
+    red:    { label: 'レッド', color: '#f44336', soft: '#ffebee' },
+    orange: { label: 'オレンジ', color: '#ff9800', soft: '#fff3e0' },
+    yellow: { label: 'イエロー', color: '#fbc02d', soft: '#fffde7' },
+    blue:   { label: 'ブルー', color: '#2196f3', soft: '#e3f2fd' },
+    purple: { label: 'パープル', color: '#9c27b0', soft: '#f3e5f5' }
+  };
+  const ICON_INFO = {
+    heart:   { label: 'ハート', mark: '♥' },
+    diamond: { label: 'ダイヤ', mark: '♦' },
+    spade:   { label: 'スペード', mark: '♠' },
+    club:    { label: 'クラブ', mark: '♣' }
+  };
+
+  let editingId = '';
+  let colors = Object.keys(COLOR_INFO);
+  let icons = Object.keys(ICON_INFO);
+  let selectedColor = 'pink';
+  let selectedIcon = 'heart';
+
+  box.innerHTML = `
+    <h3 style="margin-top:0;color:#8e24aa">利用ユーザーの登録・管理</h3>
+    <p style="font-size:.85rem;color:#555;line-height:1.7">
+      一般ユーザーごとに、ユーザー名・パスワード・テーマカラー・アイコンを設定できます。<br>
+      パスワードには長さや文字種の制限を設けていません。パスワードそのものはハッシュ化して保存されます。
+    </p>
+
+    <div class="user-profile-editor" id="um-editor">
+      <div class="user-editor-heading">
+        <div>
+          <h4 id="um-editor-title">新しい利用ユーザーを登録</h4>
+          <p id="um-editor-description">ユーザーごとのプロフィールを設定してください。</p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>ユーザー名</label>
+        <input id="um-name" class="form-control" placeholder="例: user01" autocomplete="off">
+        <small class="user-form-note">文字数・文字種の制限はありません。</small>
+      </div>
+
+      <div class="form-group">
+        <label id="um-pw-label">パスワード</label>
+        <input type="password" id="um-pw" class="form-control" autocomplete="new-password">
+        <small class="user-form-note" id="um-pw-note">長さ・文字種の制限はありません。</small>
+      </div>
+
+      <div class="user-setting-section">
+        <h4>テーマカラー</h4>
+        <p>このユーザー専用のカラーを6色から選択できます。</p>
+        <div class="user-color-grid" id="um-colors"></div>
+      </div>
+
+      <div class="user-setting-section">
+        <h4>アイコン</h4>
+        <p>プロフィールなどに表示するアイコンを選択できます。</p>
+        <div class="user-icon-grid" id="um-icons"></div>
+      </div>
+
+      <div class="user-profile-preview" id="um-preview">
+        <div class="user-preview-icon" id="um-preview-icon">♥</div>
+        <div class="user-preview-info">
+          <div class="user-preview-label">プロフィールプレビュー</div>
+          <div class="user-preview-name" id="um-preview-name">新しいユーザー</div>
+        </div>
+      </div>
+
+      <div class="user-editor-actions">
+        <button class="btn-submit secondary" id="um-cancel" style="display:none">編集をキャンセル</button>
+        <button class="btn-submit" id="um-save">ユーザーを登録</button>
+      </div>
+    </div>
+
+    <div class="user-list-heading">
+      <h4>登録済みユーザー</h4>
+      <span id="um-count"></span>
+    </div>
+    <div id="um-list"></div>
+  `;
+
+  const renderColors = () => {
+    $('#um-colors').innerHTML = colors.map((v) => {
+      const info = COLOR_INFO[v] || { label: v, color: '#999' };
+      return `<button type="button" class="user-color-choice${v === selectedColor ? ' selected' : ''}" data-color="${esc(v)}" style="--choice-color:${info.color}">
+        <span></span><small>${esc(info.label)}</small>
+      </button>`;
+    }).join('');
+  };
+
+  const renderIcons = () => {
+    $('#um-icons').innerHTML = icons.map((v) => {
+      const info = ICON_INFO[v] || { label: v, mark: '◆' };
+      return `<button type="button" class="user-icon-choice${v === selectedIcon ? ' selected' : ''}" data-icon="${esc(v)}" aria-label="${esc(info.label)}">
+        <span>${info.mark}</span><small>${esc(info.label)}</small>
+      </button>`;
+    }).join('');
+  };
+
+  const updatePreview = () => {
+    const info = COLOR_INFO[selectedColor] || COLOR_INFO.pink;
+    const name = $('#um-name').value.trim() || '新しいユーザー';
+    $('#um-preview').style.setProperty('--user-preview-color', info.color);
+    $('#um-preview').style.setProperty('--user-preview-soft', info.soft);
+    $('#um-preview-icon').style.background = info.color;
+    $('#um-preview-icon').textContent = ICON_INFO[selectedIcon]?.mark || '♥';
+    $('#um-preview-name').textContent = name;
+  };
+
+  const resetForm = () => {
+    editingId = '';
+    selectedColor = 'pink';
+    selectedIcon = 'heart';
+    $('#um-name').value = '';
+    $('#um-pw').value = '';
+    $('#um-editor-title').textContent = '新しい利用ユーザーを登録';
+    $('#um-editor-description').textContent = 'ユーザーごとのプロフィールを設定してください。';
+    $('#um-pw-label').textContent = 'パスワード';
+    $('#um-pw-note').textContent = '長さ・文字種の制限はありません。';
+    $('#um-save').textContent = 'ユーザーを登録';
+    $('#um-cancel').style.display = 'none';
+    renderColors(); renderIcons(); updatePreview();
+  };
+
+  const draw = async () => {
+    try {
+      const result = await api('users');
+      const users = Array.isArray(result) ? result : (result.users || []);
+      colors = Array.isArray(result?.colors) && result.colors.length ? result.colors : colors;
+      icons = Array.isArray(result?.icons) && result.icons.length ? result.icons : icons;
+      $('#um-count').textContent = `${users.length}人`;
+      const list = $('#um-list');
+      list.innerHTML = users.length ? '' : '<p style="color:#aaa">登録されているユーザーはいません。</p>';
+      users.forEach((u) => {
+        const info = COLOR_INFO[u.color] || COLOR_INFO.pink;
+        const icon = ICON_INFO[u.icon] || ICON_INFO.heart;
+        const row = document.createElement('div');
+        row.className = 'user-admin-row user-profile-row';
+        row.dataset.id = u.id;
+        row.innerHTML = `
+          <div class="user-profile-main">
+            <div class="user-list-icon" style="--user-row-color:${info.color};--user-row-soft:${info.soft}">${icon.mark}</div>
+            <div>
+              <strong>${esc(u.username)}</strong>
+              <div class="user-profile-meta">
+                <span style="color:${info.color}">${esc(info.label)}</span>
+                <span>${esc(icon.label)}</span>
+                <span>登録：${new Date(u.createdAt).toLocaleString('ja-JP')}</span>
+              </div>
+            </div>
+          </div>
+          <div class="user-admin-actions">
+            <button class="mini-btn mini-edit" data-a="edit">設定を変更</button>
+            <button class="mini-btn mini-del" data-a="del">削除</button>
+          </div>`;
+        list.appendChild(row);
+      });
+    } catch (err) {
+      $('#um-list').innerHTML = `<p style="color:#d32f2f">${esc(err.message)}</p>`;
+    }
+  };
+
+  $('#um-colors').onclick = (e) => {
+    const btn = e.target.closest('[data-color]'); if (!btn) return;
+    selectedColor = btn.dataset.color;
+    renderColors(); updatePreview();
+  };
+  $('#um-icons').onclick = (e) => {
+    const btn = e.target.closest('[data-icon]'); if (!btn) return;
+    selectedIcon = btn.dataset.icon;
+    renderIcons(); updatePreview();
+  };
+  $('#um-name').oninput = updatePreview;
+
+  $('#um-cancel').onclick = resetForm;
+
+  $('#um-save').onclick = async () => {
+    const username = $('#um-name').value.trim();
+    const password = $('#um-pw').value;
+    if (!username) return toast('ユーザー名を入力してください');
+
+    const body = {
+      username,
+      color: selectedColor,
+      icon: selectedIcon
+    };
+    if (password !== '') body.password = password;
+
+    try {
+      if (editingId) {
+        await api('users/' + editingId, 'PUT', body);
+        toast('ユーザー情報を更新しました');
+      } else {
+        await api('users', 'POST', { ...body, password });
+        toast('ユーザーを登録しました');
+      }
+      resetForm();
+      await draw();
+    } catch (err) { toast(err.message); }
+  };
+
+  $('#um-list').onclick = async (e) => {
+    const row = e.target.closest('.user-profile-row'); if (!row) return;
+    const id = row.dataset.id;
+
+    if (e.target.closest('[data-a="del"]')) {
+      if (!confirm('このユーザーと、そのユーザーのカード情報（所持・QR）を削除しますか？')) return;
+      try { await api('users/' + id, 'DELETE'); await draw(); toast('ユーザーを削除しました'); }
+      catch (err) { toast(err.message); }
+      return;
+    }
+
+    if (e.target.closest('[data-a="edit"]')) {
+      try {
+        const result = await api('users');
+        const users = Array.isArray(result) ? result : (result.users || []);
+        const u = users.find((x) => x.id === id);
+        if (!u) return toast('ユーザーが見つかりません');
+        editingId = u.id;
+        selectedColor = colors.includes(u.color) ? u.color : 'pink';
+        selectedIcon = icons.includes(u.icon) ? u.icon : 'heart';
+        $('#um-name').value = u.username || '';
+        $('#um-pw').value = '';
+        $('#um-editor-title').textContent = '利用ユーザーの設定を変更';
+        $('#um-editor-description').textContent = 'ユーザー名・パスワード・カラー・アイコンを変更できます。';
+        $('#um-pw-label').textContent = '新しいパスワード';
+        $('#um-pw-note').textContent = '変更しない場合は空欄のままにしてください。長さ・文字種の制限はありません。';
+        $('#um-save').textContent = 'ユーザー情報を保存';
+        $('#um-cancel').style.display = '';
+        renderColors(); renderIcons(); updatePreview();
+        $('#um-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) { toast(err.message); }
+    }
+  };
+
+  resetForm();
+  draw();
+}
+
+/* --- アカウント情報 --- */
+function renderAdminAccount() {
+  const box = $('#admin-sub-account'); if (!box) return;
+  box.innerHTML = `
+    <h3 style="margin-top:0;color:#8e24aa">パスワードの変更</h3>
+    <p style="font-size:.85rem;color:#555">パスワードはハッシュ化して保存されており、サーバーにも平文では残りません。定期的な変更や、パスワード生成ツールで作った強いパスワードの利用をおすすめします。</p>
+    <div class="form-group"><label>現在のパスワード</label><input type="password" id="ac-cur" class="form-control" autocomplete="current-password"></div>
+    <div class="form-group"><label>新しいパスワード（12文字以上）</label><input type="password" id="ac-new1" class="form-control" autocomplete="new-password"></div>
+    <div class="form-group"><label>新しいパスワード（確認）</label><input type="password" id="ac-new2" class="form-control" autocomplete="new-password"></div>
+    <button class="btn-submit secondary" id="ac-submit" style="margin-bottom:20px">パスワードを変更</button>
+    <hr style="border:0;border-top:1px solid #eee;margin-bottom:20px">
+    <p style="font-size:.85rem;color:#555">ログインは12時間で自動的に切れます。この管理サイトはパソコンからのアクセスのみ利用できます。一般ユーザー向けサイトとはログイン状態が独立しています。</p>
+    <button class="btn-submit neutral" id="ac-logout">ログアウト</button>
+  `;
+  $('#ac-submit').onclick = async () => {
+    const cur = $('#ac-cur').value, n1 = $('#ac-new1').value, n2 = $('#ac-new2').value;
+    if (n1.length < 12) return toast('新しいパスワードは12文字以上にしてください');
+    if (n1 !== n2) return toast('確認用パスワードが一致しません');
+    try {
+      await api('admin/password', 'POST', { current: cur, next: n1 });
+      toast('パスワードを変更しました');
+      $('#ac-cur').value = ''; $('#ac-new1').value = ''; $('#ac-new2').value = '';
+    } catch (err) { toast(err.message); }
+  };
+  $('#ac-logout').onclick = doLogout;
+}
+
+/* ---------- 初期化 ---------- */
+async function loadCardsAndRenderApp() {
+  try { cards = await api('cards'); } catch { toast('サーバーに接続できません'); cards = []; }
+  renderAdminTab();
+}
+(async () => {
+  await refreshAdminStatus();
+  renderGate();
+  if (admin.authed && admin.pc) await loadCardsAndRenderApp();
+})();
+</script>
+</body>
+</html>

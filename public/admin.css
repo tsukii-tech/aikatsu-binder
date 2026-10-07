@@ -1,0 +1,1099 @@
+:root{--cute:#ff69b4;--cool:#00bfff;--sexy:#ba55d3;--pop:#ffaa00;--purple:#8e24aa}
+*{box-sizing:border-box}
+body{margin:0;font-family:'M PLUS Rounded 1c',sans-serif;background:#f6eefb;color:#333;min-height:100vh;padding-bottom:60px}
+header{background:linear-gradient(135deg,#8e24aa,#c158dc);padding:16px 20px;text-align:center;box-shadow:0 4px 15px rgba(142,36,170,.35);border-bottom:4px solid #fff}
+.header-title{color:#fff;font-weight:900;font-size:clamp(1.1rem,4vw,1.6rem);margin:0}
+.container{max-width:1100px;margin:20px auto;padding:0 15px}
+
+.admin-gate{max-width:460px;margin:60px auto;background:#fff;border-radius:20px;padding:32px;border:4px solid var(--purple);text-align:center;box-shadow:0 12px 30px rgba(142,36,170,.18)}
+.admin-gate h2{color:var(--purple);margin-top:0}
+.admin-gate p{font-size:.85rem;color:#555;line-height:1.7;text-align:left}
+
+.admin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.admin-tab-btn{padding:9px 16px;border-radius:14px;border:2px solid var(--purple);background:#fff;color:var(--purple);font:800 .85rem inherit;font-family:inherit;cursor:pointer;min-height:40px}
+.admin-tab-btn.active{background:var(--purple);color:#fff}
+.admin-panel{background:#fff;border-radius:20px;padding:24px;border:4px solid var(--purple);box-shadow:0 8px 20px rgba(0,0,0,.06)}
+.admin-sub{display:none}.admin-sub.show{display:block}
+
+.admin-list-row{display:grid;grid-template-columns:56px 1fr;gap:14px;align-items:start;padding:14px 0;border-bottom:1px solid #f0e6f5}
+.admin-list-row:last-child{border-bottom:0}
+.admin-thumb{width:56px;height:80px;border-radius:8px;object-fit:cover;background:#eee;border:2px solid #ddd}
+.admin-row-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.85rem;font-weight:800;color:#333;margin-bottom:6px}
+.series-pill{font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:8px;background:#f3e5f5;color:var(--purple)}
+.admin-row-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.admin-search{margin-bottom:16px}
+
+.mini-btn{padding:6px 12px;border:0;border-radius:8px;font:700 .74rem inherit;font-family:inherit;cursor:pointer;color:#fff;min-height:32px}
+.mini-edit{background:#2196f3}.mini-del{background:#d32f2f}
+
+.chip-row{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
+.chip-row .chip{padding:7px 13px;border-radius:14px;font-size:.78rem;font-weight:700;cursor:pointer;background:#f0f0f0;color:#666;border:2px solid transparent;min-height:32px;display:flex;align-items:center}
+.chip-row .chip.sel{color:#fff;border-color:#333}
+.chip-row .chip[data-v=cute].sel{background:var(--cute)}.chip-row .chip[data-v=cool].sel{background:var(--cool)}
+.chip-row .chip[data-v=sexy].sel{background:var(--sexy)}.chip-row .chip[data-v=pop].sel{background:var(--pop)}
+.chip-row .chip[data-v]:not([data-v=cute]):not([data-v=cool]):not([data-v=sexy]):not([data-v=pop]).sel{background:var(--purple)}
+
+.form-group{margin-bottom:15px}
+.form-group label{display:block;font-weight:700;margin-bottom:5px;font-size:.85rem}
+.form-control{width:100%;padding:11px;border:2px solid #ddd;border-radius:10px;font-family:inherit;font-size:1rem;min-height:44px}
+textarea.form-control{min-height:auto}
+.btn-submit{background:var(--purple);color:#fff;border:0;padding:13px;border-radius:12px;width:100%;font:800 1rem inherit;font-family:inherit;cursor:pointer;transition:transform .15s;min-height:46px}
+.btn-submit.danger{background:#d32f2f}
+.btn-submit.neutral{background:#777}
+.nav-btn{background:#fff;color:var(--purple);border:2px solid var(--purple);padding:9px 16px;border-radius:16px;font:800 .85rem inherit;font-family:inherit;cursor:pointer;min-height:40px}
+.nav-btn:hover{background:var(--purple);color:#fff}
+
+.user-admin-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid #f0e6f5;flex-wrap:wrap}
+.user-admin-row:last-child{border-bottom:0}
+.user-admin-date{font-size:.72rem;color:#999;margin-top:4px}
+.user-admin-actions{display:flex;gap:7px;flex-wrap:wrap}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .3s;padding:16px}
+.modal-overlay.active{opacity:1;pointer-events:auto}
+.modal-body{background:#fff;border-radius:20px;padding:24px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;border:4px solid var(--purple)}
+
+#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,0);opacity:0;background:var(--purple);color:#fff;padding:12px 20px;border-radius:24px;font-weight:800;z-index:2000;transition:opacity .25s;box-shadow:0 6px 16px rgba(0,0,0,.25);max-width:92vw;text-align:center;font-size:.9rem}
+#toast.show{opacity:1}
+
+@media (max-width:600px){
+  .admin-gate{margin:30px auto;padding:22px}
+  .admin-panel{padding:16px}
+  .admin-list-row{grid-template-columns:48px 1fr}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* style.css */
+/* 既存のstyle.cssの一番下に追加 */
+
+:root {
+  --admin-accent: #e91e63;
+  --admin-accent-dark: #ad1457;
+  --admin-accent-soft: #fce4ec;
+}
+
+/* 管理者プロフィール */
+.admin-profile-nav {
+  border-color: var(--admin-accent) !important;
+  color: var(--admin-accent) !important;
+}
+
+.admin-profile-nav:hover,
+.admin-profile-nav.active {
+  background: var(--admin-accent) !important;
+  border-color: var(--admin-accent) !important;
+  color: #fff !important;
+  box-shadow: 0 5px 0 var(--admin-accent-dark) !important;
+}
+
+.admin-nav-icon {
+  font-size: 1.1em;
+  margin-right: 2px;
+}
+
+.admin-tabs .admin-tab-btn {
+  border-color: var(--admin-accent);
+  color: var(--admin-accent);
+}
+
+.admin-tabs .admin-tab-btn.active {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+}
+
+.admin-panel {
+  border-color: var(--admin-accent);
+}
+
+.admin-account-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  margin-bottom: 22px;
+  border-radius: 18px;
+  background: var(--admin-accent-soft);
+  border: 2px solid var(--admin-accent);
+}
+
+.admin-account-header h3 {
+  margin: 0 0 5px;
+  color: var(--admin-accent);
+}
+
+.admin-account-header p {
+  margin: 0;
+  color: #666;
+  font-size: .85rem;
+}
+
+.admin-account-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--admin-accent);
+  color: #fff;
+  font-size: 2rem;
+  box-shadow: 0 5px 12px rgba(0,0,0,.12);
+}
+
+.admin-account-card {
+  padding: 20px;
+  border-radius: 18px;
+  background: #fff;
+  border: 2px solid #eee;
+}
+
+.admin-form-note {
+  display: block;
+  margin-top: 5px;
+  color: #999;
+  font-size: .75rem;
+}
+
+.admin-color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(70px, 1fr));
+  gap: 10px;
+}
+
+.admin-color-choice {
+  border: 2px solid #ddd;
+  background: #fff;
+  border-radius: 14px;
+  padding: 9px 5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: .18s;
+}
+
+.admin-color-choice:hover {
+  transform: translateY(-2px);
+  border-color: var(--choice-color);
+}
+
+.admin-color-choice.selected {
+  border-color: var(--choice-color);
+  box-shadow:
+    0 0 0 3px color-mix(
+      in srgb,
+      var(--choice-color) 20%,
+      transparent
+    );
+  background: #fff;
+}
+
+.admin-color-choice > span {
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 5px;
+  border-radius: 50%;
+  background: var(--choice-color);
+  box-shadow:
+    inset 0 -3px 0 rgba(0,0,0,.12),
+    0 2px 5px rgba(0,0,0,.12);
+}
+
+.admin-color-choice small {
+  display: block;
+  color: #555;
+  font-weight: 700;
+  font-size: .7rem;
+}
+
+.admin-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.admin-icon-choice {
+  min-height: 75px;
+  border: 2px solid #ddd;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--admin-accent);
+  font-size: 2.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: .18s;
+}
+
+.admin-icon-choice:hover {
+  transform: translateY(-2px);
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+.admin-icon-choice.selected {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+  box-shadow:
+    0 0 0 3px rgba(0,0,0,.04),
+    0 5px 12px rgba(0,0,0,.08);
+}
+
+.admin-profile-preview {
+  --preview-color: var(--admin-accent);
+  --preview-soft: var(--admin-accent-soft);
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: var(--preview-soft);
+  border: 2px solid var(--preview-color);
+  color: var(--preview-color);
+}
+
+.admin-preview-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.admin-preview-name {
+  font-weight: 900;
+  font-size: 1.05rem;
+}
+
+.admin-account-divider {
+  border: 0;
+  border-top: 1px solid #eee;
+  margin: 25px 0 20px;
+}
+
+.admin-account-note {
+  color: #777;
+  font-size: .8rem;
+  line-height: 1.7;
+}
+
+/* ログイン画面 */
+.admin-login-description {
+  font-size: .85rem;
+  color: #666;
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
+
+.admin-login-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+}
+
+.admin-login-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--admin-accent);
+  color: #fff;
+  font-size: 1.7rem;
+}
+
+.admin-login-label {
+  font-size: .7rem;
+  opacity: .75;
+}
+
+.admin-login-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.admin-login-actions .btn-submit {
+  flex: 1;
+}
+
+@media (max-width: 700px) {
+  .admin-color-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 450px) {
+  .admin-color-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-icon-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-login-actions {
+    flex-direction: column;
+  }
+}
+
+/* ========================================
+   管理者プロフィール設定
+   ユーザー名・パスワード・カラー・アイコン
+   ======================================== */
+
+.admin-profile-settings {
+  margin-top: 20px;
+}
+
+/* 設定セクション */
+.admin-setting-section {
+  margin-bottom: 26px;
+  padding: 20px;
+  border: 2px solid #eee;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.admin-setting-section:last-child {
+  margin-bottom: 0;
+}
+
+.admin-setting-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  color: var(--admin-accent);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.admin-setting-description {
+  margin: 0 0 16px;
+  color: #777;
+  font-size: .78rem;
+  line-height: 1.7;
+}
+
+/* ユーザー名・パスワード入力 */
+.admin-profile-form-group {
+  margin-bottom: 16px;
+}
+
+.admin-profile-form-group:last-child {
+  margin-bottom: 0;
+}
+
+.admin-profile-form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: .82rem;
+  font-weight: 800;
+  color: #444;
+}
+
+.admin-profile-form-group input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 13px;
+  border: 2px solid #ddd;
+  border-radius: 11px;
+  background: #fff;
+  color: #333;
+  font-family: inherit;
+  font-size: .95rem;
+  outline: none;
+  transition: .18s;
+}
+
+.admin-profile-form-group input:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-soft);
+}
+
+.admin-profile-form-group input::placeholder {
+  color: #aaa;
+}
+
+.admin-password-note {
+  display: block;
+  margin-top: 5px;
+  color: #999;
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+/* ========================================
+   カラー設定
+   ======================================== */
+
+.admin-color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(70px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.admin-color-choice {
+  position: relative;
+  min-height: 78px;
+  padding: 9px 5px;
+  border: 2px solid #ddd;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.admin-color-choice:hover {
+  transform: translateY(-2px);
+  border-color: var(--choice-color);
+}
+
+.admin-color-choice:active {
+  transform: translateY(0);
+}
+
+.admin-color-choice.selected {
+  border-color: var(--choice-color);
+  box-shadow:
+    0 0 0 3px rgba(0, 0, 0, .05),
+    0 5px 12px rgba(0, 0, 0, .08);
+}
+
+.admin-color-choice.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--choice-color);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 900;
+}
+
+.admin-color-choice > span {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 6px;
+  border-radius: 50%;
+  background: var(--choice-color);
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, .12),
+    0 2px 5px rgba(0, 0, 0, .12);
+}
+
+.admin-color-choice small {
+  display: block;
+  color: #555;
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+/* ========================================
+   アイコン設定
+   ======================================== */
+
+.admin-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.admin-icon-choice {
+  position: relative;
+  min-height: 82px;
+  border: 2px solid #ddd;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--admin-accent);
+  font-family: inherit;
+  font-size: 2.5rem;
+  cursor: pointer;
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    background .18s ease,
+    box-shadow .18s ease;
+}
+
+.admin-icon-choice:hover {
+  transform: translateY(-2px);
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+.admin-icon-choice:active {
+  transform: translateY(0);
+}
+
+.admin-icon-choice.selected {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+  box-shadow:
+    0 0 0 3px rgba(0, 0, 0, .04),
+    0 5px 12px rgba(0, 0, 0, .08);
+}
+
+.admin-icon-choice.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--admin-accent);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 900;
+}
+
+/* ========================================
+   プロフィールプレビュー
+   ======================================== */
+
+.admin-profile-preview {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 20px 0;
+  padding: 15px 18px;
+  border: 2px solid var(--preview-color, var(--admin-accent));
+  border-radius: 16px;
+  background: var(--preview-soft, var(--admin-accent-soft));
+  color: var(--preview-color, var(--admin-accent));
+  transition: .2s;
+}
+
+.admin-preview-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--preview-color, var(--admin-accent));
+  color: #fff;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.admin-preview-info {
+  min-width: 0;
+}
+
+.admin-preview-label {
+  margin-bottom: 2px;
+  color: var(--preview-color, var(--admin-accent));
+  font-size: .68rem;
+  font-weight: 700;
+  opacity: .75;
+}
+
+.admin-preview-name {
+  overflow: hidden;
+  color: var(--preview-color, var(--admin-accent));
+  font-size: 1rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ========================================
+   アカウント情報ヘッダー
+   ======================================== */
+
+.admin-account-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding: 18px;
+  border: 2px solid var(--admin-accent);
+  border-radius: 18px;
+  background: var(--admin-accent-soft);
+}
+
+.admin-account-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--admin-accent);
+  color: #fff;
+  font-size: 2rem;
+  line-height: 1;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, .12);
+}
+
+.admin-account-header h3 {
+  margin: 0 0 5px;
+  color: var(--admin-accent);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.admin-account-header p {
+  margin: 0;
+  color: #666;
+  font-size: .82rem;
+  line-height: 1.5;
+}
+
+/* ========================================
+   保存・リセットボタン
+   ======================================== */
+
+.admin-profile-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.admin-profile-actions .btn-submit {
+  flex: 1;
+}
+
+.admin-profile-actions .btn-submit.secondary {
+  background: #777;
+}
+
+.admin-profile-actions .btn-submit.secondary:hover {
+  background: #666;
+}
+
+
+
+
+.admin-login-description {
+  margin-bottom: 20px;
+  color: #666;
+  font-size: .85rem;
+  line-height: 1.7;
+}
+
+/* ========================================
+   管理者プロフィール表示用ナビゲーション
+   ======================================== */
+
+.admin-profile-nav {
+  border-color: var(--admin-accent) !important;
+  color: var(--admin-accent) !important;
+}
+
+.admin-profile-nav:hover,
+.admin-profile-nav.active {
+  border-color: var(--admin-accent) !important;
+  background: var(--admin-accent) !important;
+  color: #fff !important;
+  box-shadow: 0 5px 0 var(--admin-accent-dark) !important;
+}
+
+.admin-nav-icon {
+  margin-right: 2px;
+  font-size: 1.1em;
+}
+
+/* ========================================
+   6色用カラーテーマ
+   ======================================== */
+
+.admin-theme-pink {
+  --admin-accent: #e91e63;
+  --admin-accent-dark: #ad1457;
+  --admin-accent-soft: #fce4ec;
+}
+
+.admin-theme-blue {
+  --admin-accent: #2196f3;
+  --admin-accent-dark: #1565c0;
+  --admin-accent-soft: #e3f2fd;
+}
+
+.admin-theme-purple {
+  --admin-accent: #9c27b0;
+  --admin-accent-dark: #6a1b9a;
+  --admin-accent-soft: #f3e5f5;
+}
+
+.admin-theme-orange {
+  --admin-accent: #ff9800;
+  --admin-accent-dark: #ef6c00;
+  --admin-accent-soft: #fff3e0;
+}
+
+.admin-theme-green {
+  --admin-accent: #4caf50;
+  --admin-accent-dark: #2e7d32;
+  --admin-accent-soft: #e8f5e9;
+}
+
+.admin-theme-red {
+  --admin-accent: #f44336;
+  --admin-accent-dark: #c62828;
+  --admin-accent-soft: #ffebee;
+}
+
+/* ========================================
+   モバイル対応
+   ======================================== */
+
+@media (max-width: 700px) {
+  .admin-color-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .admin-account-header {
+    padding: 14px;
+  }
+
+  .admin-setting-section {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 450px) {
+  .admin-color-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-icon-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-profile-actions {
+    flex-direction: column;
+  }
+
+  .admin-account-icon {
+    width: 54px;
+    height: 54px;
+    font-size: 1.7rem;
+  }
+
+  .admin-account-header {
+    gap: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-color-choice,
+  .admin-icon-choice,
+  .admin-profile-preview {
+    transition: none;
+  }
+}
+
+/* ========================================
+   一般ユーザー パーソナライズ設定
+   ======================================== */
+.user-profile-editor {
+  margin: 20px 0 28px;
+  padding: 22px;
+  border: 2px solid #eee;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.user-editor-heading {
+  margin-bottom: 20px;
+}
+
+.user-editor-heading h4,
+.user-setting-section h4,
+.user-list-heading h4 {
+  margin: 0 0 5px;
+  color: var(--purple);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.user-editor-heading p,
+.user-setting-section p {
+  margin: 0;
+  color: #777;
+  font-size: .78rem;
+  line-height: 1.7;
+}
+
+.user-form-note {
+  display: block;
+  margin-top: 5px;
+  color: #999;
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+.user-setting-section {
+  margin: 22px 0;
+  padding: 18px;
+  border: 2px solid #eee;
+  border-radius: 16px;
+  background: #fafafa;
+}
+
+.user-color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(70px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.user-color-choice {
+  position: relative;
+  min-height: 78px;
+  padding: 9px 5px;
+  border: 2px solid #ddd;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  transition: .18s;
+}
+
+.user-color-choice:hover {
+  transform: translateY(-2px);
+  border-color: var(--choice-color);
+}
+
+.user-color-choice.selected {
+  border-color: var(--choice-color);
+  box-shadow: 0 0 0 3px rgba(0,0,0,.05), 0 5px 12px rgba(0,0,0,.08);
+}
+
+.user-color-choice.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--choice-color);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 900;
+}
+
+.user-color-choice > span {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 6px;
+  border-radius: 50%;
+  background: var(--choice-color);
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.12), 0 2px 5px rgba(0,0,0,.12);
+}
+
+.user-color-choice small,
+.user-icon-choice small {
+  display: block;
+  color: #555;
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+.user-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.user-icon-choice {
+  position: relative;
+  min-height: 86px;
+  padding: 8px;
+  border: 2px solid #ddd;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--purple);
+  cursor: pointer;
+  font-family: inherit;
+  transition: .18s;
+}
+
+.user-icon-choice:hover {
+  transform: translateY(-2px);
+  border-color: var(--purple);
+  background: #f3e5f5;
+}
+
+.user-icon-choice.selected {
+  border-color: var(--purple);
+  background: #f3e5f5;
+  box-shadow: 0 0 0 3px rgba(142,36,170,.08), 0 5px 12px rgba(0,0,0,.08);
+}
+
+.user-icon-choice.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--purple);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 900;
+}
+
+.user-icon-choice > span {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 2.25rem;
+  line-height: 1.1;
+}
+
+.user-profile-preview {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 20px 0;
+  padding: 15px 18px;
+  border: 2px solid var(--user-preview-color, var(--purple));
+  border-radius: 16px;
+  background: var(--user-preview-soft, #f3e5f5);
+  color: var(--user-preview-color, var(--purple));
+}
+
+.user-preview-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.user-preview-label {
+  margin-bottom: 2px;
+  color: var(--user-preview-color, var(--purple));
+  font-size: .68rem;
+  font-weight: 700;
+  opacity: .75;
+}
+
+.user-preview-name {
+  color: var(--user-preview-color, var(--purple));
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.user-editor-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.user-editor-actions .btn-submit {
+  flex: 1;
+}
+
+.user-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 28px 0 8px;
+}
+
+.user-list-heading span {
+  color: #999;
+  font-size: .75rem;
+  font-weight: 800;
+}
+
+.user-profile-row {
+  padding: 14px 0;
+}
+
+.user-profile-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.user-list-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--user-row-soft, #f3e5f5);
+  color: var(--user-row-color, var(--purple));
+  font-size: 1.55rem;
+  border: 2px solid var(--user-row-color, var(--purple));
+}
+
+.user-profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 4px;
+  color: #999;
+  font-size: .7rem;
+}
+
+.user-profile-meta span:not(:last-child)::after {
+  content: "・";
+  color: #ccc;
+  margin-left: 7px;
+}
+
+@media (max-width: 700px) {
+  .user-color-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 450px) {
+  .user-color-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .user-icon-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .user-editor-actions {
+    flex-direction: column;
+  }
+}
+

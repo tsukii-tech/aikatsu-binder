@@ -1,0 +1,8 @@
+{
+  "name": "aikatsu-binder",
+  "version": "1.0.0",
+  "description": "アイカツ！カードバインダー（一般ユーザーサイト＋独立した管理サイト）",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

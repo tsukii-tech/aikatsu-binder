@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>アイカツ！バインダー</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>✨ アイカツ！バインダー ✨</h1>
+  <div class="user-bar"><span id="user-name-display"></span><button id="user-logout-btn">ログアウト</button></div>
+</header>
+
+<main class="container">
+  <section class="filter-card" id="filter-card">
+    <button class="filter-toggle" id="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-content">
+      <span class="filter-title-row">
+        <span>
+          <span class="filter-heading">カードを探す</span>
+          <span class="filter-subtitle">気になる条件をタップして絞り込めます</span>
+        </span>
+        <span class="filter-toggle-right"><span class="filter-sparkle">✦</span><span class="filter-arrow">⌄</span></span>
+      </span>
+    </button>
+
+    <div class="filter-content" id="filter-content">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="search-input" class="search-input" placeholder="カード名・IDで検索...">
+    </div>
+
+    <div class="filter-section series-section">
+      <div class="filter-section-title"><span class="filter-dot series-dot"></span><span>登場弾</span><small>いつのカード？</small></div>
+      <div class="filter-group" id="series-filters">
+        <button class="filter-chip series-all active" data-series="all">すべて</button>
+        <button class="filter-chip series-regular" data-series="regular">第1弾（E1など）</button>
+        <button class="filter-chip series-promotion" data-series="promotion">プロモーション（EP）</button>
+      </div>
+    </div>
+
+    <div class="filter-section type-section">
+      <div class="filter-section-title"><span class="filter-dot type-dot"></span><span>タイプ</span><small>どんな雰囲気？</small></div>
+      <div class="filter-group" id="type-filters">
+        <button class="filter-chip type-all active" data-type="all">すべて</button>
+        <button class="filter-chip type-cute" data-type="cute">キュート</button>
+        <button class="filter-chip type-cool" data-type="cool">クール</button>
+        <button class="filter-chip type-sexy" data-type="sexy">セクシー</button>
+        <button class="filter-chip type-pop" data-type="pop">ポップ</button>
+        <button class="filter-chip owned-filter" data-owned="1">✓ 所持済み</button>
+        <button class="filter-chip favorite-filter" data-favorite="1">♥ お気に入り</button>
+      </div>
+    </div>
+
+    <div class="filter-section category-section">
+      <div class="filter-section-title"><span class="filter-dot category-dot"></span><span>服の種類</span><small>何を合わせたい？</small></div>
+      <div class="filter-group category-group" id="category-filters">
+        <button class="filter-chip cat-all active" data-cat="all">すべて</button>
+        <button class="filter-chip cat-top" data-cat="トップス">トップス</button>
+        <button class="filter-chip cat-bottom" data-cat="ボトムス">ボトムス</button>
+        <button class="filter-chip cat-onepiece" data-cat="トップス&amp;ボトムス">トップス&amp;ボトムス</button>
+        <button class="filter-chip cat-shoes" data-cat="シューズ">シューズ</button>
+        <button class="filter-chip cat-accessory" data-cat="アクセサリー">アクセサリー</button>
+        <button class="filter-chip cat-parallel" data-cat="パラレルカード">パラレルカード</button>
+      </div>
+    </div>
+
+    <div class="filter-status" id="filter-status"></div>
+    </div>
+  </section>
+
+  <section class="binder-wrapper">
+    <div id="binder-grid" class="binder-grid"></div>
+    <div id="pagination" class="pagination"></div>
+  </section>
+</main>
+
+<div class="modal-overlay login-gate active" id="user-login-modal">
+  <div class="modal-body login-card">
+    <h2>アイカツ！バインダー</h2>
+    <p>ユーザー名とパスワードを入力して利用してください。</p>
+    <form id="user-login-form">
+      <label>ユーザー名<input id="user-login-name" required autocomplete="username"></label>
+      <label>パスワード<input id="user-login-password" type="password" required autocomplete="current-password"></label>
+      <button class="btn-submit" type="submit">ログイン</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="qr-modal">
+  <div class="modal-body qr-body">
+    <h3 id="qr-title"></h3><div id="qr-big" class="qr-big"></div>
+    <button class="btn-submit neutral" id="qr-close">閉じる</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="qr-scan-modal">
+  <div class="modal-body scan-body">
+    <h3>QRコードを読み取る</h3>
+    <p class="scan-note">カメラをQRコードに向けてください。読み取った内容はそのままカードのQR情報として保存できます。</p>
+    <video id="qr-video" playsinline muted></video>
+    <div id="scan-status">カメラを起動しています…</div>
+    <button class="btn-submit neutral" id="qr-scan-close">閉じる</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const $=(s,e=document)=>e.querySelector(s);
+const $$=(s,e=document)=>[...e.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TYPE_JA={cute:'キュート',cool:'クール',sexy:'セクシー',pop:'ポップ'};
+const PH_COL={cute:'#ffb6c1',cool:'#87cefa',sexy:'#e0b0ff',pop:'#ffe066'};
+const PH_ICO={'トップス':'👚','ボトムス':'👗','トップス&ボトムス':'👗','シューズ':'👠','アクセサリー':'🎀','パラレルカード':'✨'};
+let cards=[],selectedType='all',selectedSeries='all',selectedCat='all',ownedOnly=false,favoriteOnly=false,currentPage=1,user={authed:false,username:''};
+const PER_PAGE=10,flipped=new Set(),savingCards=new Set();
+let scannerStream=null,scanTimer=null;
+
+async function api(path,method='GET',body){const r=await fetch('/api/'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'エラーが発生しました');return d;}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3500);}
+function ph(t,c){return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="${PH_COL[t]||'#eee'}"/><text x="150" y="185" font-size="110" text-anchor="middle">${PH_ICO[c]||'🎴'}</text></svg>`);}
+function imgAttrs(c,url){const raw=/^https?:/.test(url||'')?url:'';return `data-type="${esc(c.type)}" data-cat="${esc(c.category)}" data-raw="${esc(raw)}" referrerpolicy="no-referrer" src="${esc(url)||ph(c.type,c.category)}"`}
+document.addEventListener('error',e=>{const im=e.target;if(im.tagName!=='IMG')return;const stage=+(im.dataset.fb||0);if(stage===0&&im.dataset.raw){im.dataset.fb=1;im.src='/img?u='+encodeURIComponent(im.dataset.raw)}else if(stage<2){im.dataset.fb=2;im.src=ph(im.dataset.type,im.dataset.cat)}},true);
+function seriesKind(c){const n=String(c.no||'').toUpperCase().replace(/\s/g,'');if(/^EP(?:-|_)/.test(n)||n==='EP'||n.startsWith('EP-'))return'promotion';if(/^E\d+(?:-|_)/.test(n)||/^E\d+$/.test(n))return'regular';return n.startsWith('EP')?'promotion':'regular';}
+function accessoryClass(c){return c.category==='アクセサリー'?' accessory':'';}
+function updateFilterStatus(total){$('#filter-status').textContent=`${total}枚中 ${Math.min((currentPage-1)*PER_PAGE+1,total)}〜${Math.min(currentPage*PER_PAGE,total)}枚を表示`}
+function renderCards(){
+ const q=($('#search-input').value||'').toLowerCase();const cat=selectedCat;
+ const list=cards.filter(c=>(selectedSeries==='all'||seriesKind(c)===selectedSeries)&&(selectedType==='all'||c.type===selectedType)&&(cat==='all'||c.category===cat)&&(!ownedOnly||c.owned)&&(!favoriteOnly||c.favorite)&&((c.name+' '+(c.no||'')).toLowerCase().includes(q)));
+ const totalPages=Math.max(1,Math.ceil(list.length/PER_PAGE));if(currentPage>totalPages)currentPage=totalPages;
+ const pageItems=list.slice((currentPage-1)*PER_PAGE,currentPage*PER_PAGE);const grid=$('#binder-grid');grid.innerHTML='';updateFilterStatus(list.length);
+ if(!pageItems.length){grid.innerHTML=`<div class="empty">該当するカードがありません。</div>`;$('#pagination').innerHTML='';return;}
+ pageItems.forEach(c=>{const el=document.createElement('article');el.className='card-container'+(c.owned?' owned':'');el.dataset.id=c.id;const saving=savingCards.has(c.id);el.innerHTML=`
+ <div class="card-flip${flipped.has(c.id)?' flipped':''}" tabindex="0" role="button">
+  <div class="card-inner">
+   <div class="card-face card-front ${esc(c.type)}${accessoryClass(c)}">
+    <div class="badge">${esc(TYPE_JA[c.type]||c.type)}</div><div class="series-badge">${seriesKind(c)==='promotion'?'EP':'E'}</div>
+    <img class="card-img" ${imgAttrs(c,c.img)} alt="${esc(c.name)}" loading="lazy"><div class="side-tag">表面 ↻</div>
+   </div>
+   <div class="card-face card-back ${esc(c.type)}${accessoryClass(c)}">
+    ${c.imgBack?`<img class="card-img" ${imgAttrs(c,c.imgBack)} alt="${esc(c.name)} 裏面" loading="lazy">`:'<div class="no-back">裏面画像なし</div>'}<div class="side-tag">裏面 ↻</div>
+   </div>
+  </div>
+ </div>
+ <div class="card-meta">
+  <div class="card-name">${esc(c.name||c.no)}</div><div class="card-category">${esc(c.no||'')} ・ ${esc(c.category||'')}</div>
+  <div class="card-tools">
+   <button class="favorite-btn${c.favorite?' active':''}" data-a="favorite" aria-label="お気に入り">${c.favorite?'♥':'♡'}</button>
+   <button class="ownership-btn ${c.owned?'is-owned':''}" data-a="owned" ${saving?'disabled':''}>${saving?'保存中…':c.owned?'✓ 所持中':'＋ 所持登録'}</button>
+  </div>
+  <div class="qr-line">${c.qr?`<span class="qr-code-text">QR登録済み</span>`:'<span class="qr-empty">QR未登録</span>'}<button class="mini-btn" data-a="qr-edit">${c.qr?'変更':'登録'}</button><button class="mini-btn scan-btn" data-a="qr-scan">読み取り</button></div>
+  <div class="owners-box">${Array.isArray(c.owners)&&c.owners.length?`👥 ${c.owners.map(esc).join('、')}`:'👥 他のユーザーの所持なし'}</div>
+  <button class="action-btn btn-qr" data-a="qr">QR表示</button>
+ </div>`;grid.appendChild(el)});
+ renderPagination(totalPages);
+}
+function renderPagination(totalPages){const p=$('#pagination');if(totalPages<=1){p.innerHTML='';return}let h=`<button ${currentPage===1?'disabled':''} data-page="prev">‹</button>`;for(let i=1;i<=totalPages;i++){if(i===1||i===totalPages||Math.abs(i-currentPage)<=1)h+=`<button class="${i===currentPage?'active':''}" data-page="${i}">${i}</button>`;else if(i===2&&currentPage>4||i===totalPages-1&&currentPage<totalPages-3)h+='<span>…</span>'}h+=`<button ${currentPage===totalPages?'disabled':''} data-page="next">›</button>`;p.innerHTML=h}
+async function setPublic(id,patch){savingCards.add(id);renderCards();try{const saved=await api('cards/'+id+'/public','PATCH',patch);cards=cards.map(c=>c.id===id?{...c,...saved}:c);return saved}finally{savingCards.delete(id);renderCards()}}
+function showQr(c){if(!c.qr)return toast('このカードにはQRコード用データがありません');$('#qr-title').textContent=c.name||c.no;$('#qr-big').innerHTML='';new QRCode($('#qr-big'),{text:c.qr,width:220,height:220});$('#qr-modal').classList.add('active')}
+function closeScanner(){if(scanTimer){clearInterval(scanTimer);scanTimer=null}if(scannerStream){scannerStream.getTracks().forEach(t=>t.stop());scannerStream=null}$('#qr-video').srcObject=null;$('#qr-scan-modal').classList.remove('active')}
+async function scanQrForCard(card){$('#qr-scan-modal').classList.add('active');const status=$('#scan-status');try{if(!('BarcodeDetector' in window))throw new Error('このブラウザではカメラQR読み取りに対応していません');const detector=new BarcodeDetector({formats:['qr_code']});scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});const video=$('#qr-video');video.srcObject=scannerStream;await video.play();status.textContent='QRコードをカメラに映してください';scanTimer=setInterval(async()=>{if(!scannerStream||video.readyState<2)return;try{const codes=await detector.detect(video);if(codes.length&&codes[0].rawValue){const value=codes[0].rawValue;clearInterval(scanTimer);scanTimer=null;await setPublic(card.id,{qr:value});closeScanner();toast('QRコードを読み取り、保存しました');}}catch{}},250)}catch(e){closeScanner();toast(e.message==='Permission denied'?'カメラの使用を許可してください':e.message||'QR読み取りを開始できませんでした。手入力をご利用ください。')}}
+$('#binder-grid').addEventListener('click',async e=>{const cont=e.target.closest('.card-container');if(!cont)return;const c=cards.find(x=>x.id===cont.dataset.id);if(!c)return;const btn=e.target.closest('[data-a]');if(btn){const a=btn.dataset.a;if(a==='favorite'){const next=!c.favorite;await setPublic(c.id,{favorite:next});toast(next?'お気に入りに追加しました':'お気に入りから外しました');return}if(a==='owned'){try{await setPublic(c.id,{owned:!c.owned});toast(c.owned?'所持カードから外しました':'所持カードに登録しました')}catch(err){toast(err.message)}return}if(a==='qr'){showQr(c);return}if(a==='qr-scan'){scanQrForCard(c);return}if(a==='qr-edit'){const v=prompt('QRコード用データを入力してください。空欄で削除できます。',c.qr||'');if(v===null)return;try{await setPublic(c.id,{qr:v.trim()});toast(v.trim()?'QRコードを保存しました':'QRコードを削除しました')}catch(err){toast(err.message)}return}}else{const flip=e.target.closest('.card-flip');if(flip){const on=flip.classList.toggle('flipped');on?flipped.add(c.id):flipped.delete(c.id)}}});
+$('#binder-grid').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('card-flip')){e.preventDefault();e.target.click()}});
+$('#pagination').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(!b)return;if(b.dataset.page==='prev')currentPage--;else if(b.dataset.page==='next')currentPage++;else currentPage=+b.dataset.page;renderCards();window.scrollTo({top:0,behavior:'smooth'})});
+$('#filter-toggle').onclick=()=>{const card=$('#filter-card');const open=card.classList.toggle('is-open');$('#filter-toggle').setAttribute('aria-expanded',open?'true':'false')};
+$('#search-input').oninput=()=>{currentPage=1;renderCards()};
+$('#category-filters').onclick=e=>{const b=e.target.closest('[data-cat]');if(!b)return;selectedCat=b.dataset.cat;currentPage=1;$$('#category-filters [data-cat]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
+$('#series-filters').onclick=e=>{const b=e.target.closest('[data-series]');if(!b)return;selectedSeries=b.dataset.series;currentPage=1;$$('#series-filters [data-series]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
+$('#type-filters').onclick=e=>{const o=e.target.closest('[data-owned]');if(o){ownedOnly=!ownedOnly;o.classList.toggle('active',ownedOnly);currentPage=1;renderCards();return}const f=e.target.closest('[data-favorite]');if(f){favoriteOnly=!favoriteOnly;f.classList.toggle('active',favoriteOnly);currentPage=1;renderCards();return}const b=e.target.closest('[data-type]');if(!b)return;selectedType=b.dataset.type;currentPage=1;$$('#type-filters [data-type]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
+$('#qr-close').onclick=()=>$('#qr-modal').classList.remove('active');$('#qr-modal').onclick=e=>{if(e.target.id==='qr-modal')$('#qr-modal').classList.remove('active')};$('#qr-scan-close').onclick=closeScanner;$('#qr-scan-modal').onclick=e=>{if(e.target.id==='qr-scan-modal')closeScanner()};
+async function refreshUser(){try{user=await api('auth/status')}catch{user={authed:false,username:''}}$('#user-login-modal').classList.toggle('active',!user.authed);$('#user-name-display').textContent=user.authed?`ログイン中：${user.username}`:''}
+$('#user-login-form').onsubmit=async e=>{e.preventDefault();try{const r=await api('auth/login','POST',{username:$('#user-login-name').value.trim(),password:$('#user-login-password').value});user={authed:true,username:r.username};$('#user-login-password').value='';$('#user-login-modal').classList.remove('active');cards=await api('cards');currentPage=1;renderCards();toast('ログインしました')}catch(err){toast(err.message)}};
+$('#user-logout-btn').onclick=async()=>{try{await api('auth/logout','POST')}catch{}user={authed:false,username:''};cards=[];renderCards();$('#user-login-modal').classList.add('active');toast('ログアウトしました')};
+(async()=>{await refreshUser();if(user.authed){try{cards=await api('cards');renderCards()}catch{toast('サーバーに接続できません')}}})();
+</script>
+</body>
+</html>
