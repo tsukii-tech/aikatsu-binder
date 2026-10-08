@@ -76,6 +76,14 @@ const seriesOf = (no) => {
   return m ? `${m[1]}弾` : '';
 };
 
+/* 登録IDの末尾からレアリティを判定する。例: E1-01_N / E1-02_PR */
+const rarityOf = (no) => {
+  const n = String(no || '').toUpperCase().replace(/\s/g, '');
+  if (/(?:_|-|\/)PR$/.test(n) || n === 'PR') return 'premium';
+  if (/(?:_|-|\/)N$/.test(n) || n === 'N') return 'normal';
+  return '';
+};
+
 /* ===================== ファイル初期化 ===================== */
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -208,7 +216,8 @@ const clean = (c, id) => ({
 
 const withSeries = (c) => ({
   ...c,
-  series: seriesOf(c.no)
+  series: seriesOf(c.no),
+  rarity: rarityOf(c.no)
 });
 
 /*

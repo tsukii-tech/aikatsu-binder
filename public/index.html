@@ -6,6 +6,9 @@
 <title>アイカツ！バインダー</title>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/png" href="/public/icon.png">
+<link rel="apple-touch-icon" href="/public/icon.png">
+<meta name="theme-color" content="#f5b6e6">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -140,7 +143,7 @@ function ph(t,c){return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmln
 function imgAttrs(c,url){const raw=/^https?:/.test(url||'')?url:'';return `data-type="${esc(c.type)}" data-cat="${esc(c.category)}" data-raw="${esc(raw)}" referrerpolicy="no-referrer" src="${esc(url)||ph(c.type,c.category)}"`}
 document.addEventListener('error',e=>{const im=e.target;if(im.tagName!=='IMG')return;const stage=+(im.dataset.fb||0);if(stage===0&&im.dataset.raw){im.dataset.fb=1;im.src='/img?u='+encodeURIComponent(im.dataset.raw)}else if(stage<2){im.dataset.fb=2;im.src=ph(im.dataset.type,im.dataset.cat)}},true);
 function seriesKind(c){const n=String(c.no||'').toUpperCase().replace(/\s/g,'');if(/^EP(?:-|_)/.test(n)||n==='EP'||n.startsWith('EP-'))return'promotion';if(/^E\d+(?:-|_)/.test(n)||/^E\d+$/.test(n))return'regular';return n.startsWith('EP')?'promotion':'regular';}
-function rarityKind(c){const n=String(c.no||'').toUpperCase().replace(/\s/g,'');if(/PR$/.test(n))return'premium';if(/N$/.test(n))return'normal';return'normal';}
+function rarityKind(c){const r=String(c.rarity||'').toLowerCase();if(r==='premium'||r==='pr')return'premium';if(r==='normal'||r==='n')return'normal';const n=String(c.no||'').toUpperCase().replace(/\s/g,'');if(/(?:_|-|\/)PR$/.test(n)||n==='PR')return'premium';if(/(?:_|-|\/)N$/.test(n)||n==='N')return'normal';return'';}
 function accessoryClass(c){return c.category==='アクセサリー'?' accessory':'';}
 function updateFilterStatus(total){$('#filter-status').textContent=`${total}枚中 ${Math.min((currentPage-1)*PER_PAGE+1,total)}〜${Math.min(currentPage*PER_PAGE,total)}枚を表示`}
 function renderCards(){
@@ -153,7 +156,7 @@ function renderCards(){
  <div class="card-flip${flipped.has(c.id)?' flipped':''}" tabindex="0" role="button">
   <div class="card-inner">
    <div class="card-face card-front ${esc(c.type)}${accessoryClass(c)}">
-    <div class="badge">${esc(TYPE_JA[c.type]||c.type)}</div><div class="series-badge">${seriesKind(c)==='promotion'?'EP':'E'}</div><div class="rarity-badge">${rarityKind(c)==='premium'?'PR':'N'}</div>
+    <div class="badge">${esc(TYPE_JA[c.type]||c.type)}</div><div class="series-badge">${seriesKind(c)==='promotion'?'EP':'E'}</div>
     <img class="card-img" ${imgAttrs(c,c.img)} alt="${esc(c.name)}" loading="lazy"><div class="side-tag">表面 ↻</div>
    </div>
    <div class="card-face card-back ${esc(c.type)}${accessoryClass(c)}">
