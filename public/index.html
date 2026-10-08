@@ -41,6 +41,15 @@
       </div>
     </div>
 
+    <div class="filter-section rarity-section">
+      <div class="filter-section-title"><span class="filter-dot rarity-dot"></span><span>レアリティ</span><small>登録IDの N / PR から判定</small></div>
+      <div class="filter-group" id="rarity-filters">
+        <button class="filter-chip rarity-all active" data-rarity="all">すべて</button>
+        <button class="filter-chip rarity-normal" data-rarity="normal">ノーマル（N）</button>
+        <button class="filter-chip rarity-premium" data-rarity="premium">プレミアム（PR）</button>
+      </div>
+    </div>
+
     <div class="filter-section type-section">
       <div class="filter-section-title"><span class="filter-dot type-dot"></span><span>タイプ</span><small>どんな雰囲気？</small></div>
       <div class="filter-group" id="type-filters">
@@ -121,7 +130,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const TYPE_JA={cute:'キュート',cool:'クール',sexy:'セクシー',pop:'ポップ'};
 const PH_COL={cute:'#ffb6c1',cool:'#87cefa',sexy:'#e0b0ff',pop:'#ffe066'};
 const PH_ICO={'トップス':'👚','ボトムス':'👗','トップス&ボトムス':'👗','シューズ':'👠','アクセサリー':'🎀','パラレルカード':'✨'};
-let cards=[],selectedType='all',selectedSeries='all',selectedCat='all',ownedOnly=false,favoriteOnly=false,currentPage=1,user={authed:false,username:''};
+let cards=[],selectedType='all',selectedSeries='all',selectedRarity='all',selectedCat='all',ownedOnly=false,favoriteOnly=false,currentPage=1,user={authed:false,username:''};
 const PER_PAGE=10,flipped=new Set(),savingCards=new Set();
 let scannerStream=null,scanTimer=null;
 
@@ -131,11 +140,12 @@ function ph(t,c){return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmln
 function imgAttrs(c,url){const raw=/^https?:/.test(url||'')?url:'';return `data-type="${esc(c.type)}" data-cat="${esc(c.category)}" data-raw="${esc(raw)}" referrerpolicy="no-referrer" src="${esc(url)||ph(c.type,c.category)}"`}
 document.addEventListener('error',e=>{const im=e.target;if(im.tagName!=='IMG')return;const stage=+(im.dataset.fb||0);if(stage===0&&im.dataset.raw){im.dataset.fb=1;im.src='/img?u='+encodeURIComponent(im.dataset.raw)}else if(stage<2){im.dataset.fb=2;im.src=ph(im.dataset.type,im.dataset.cat)}},true);
 function seriesKind(c){const n=String(c.no||'').toUpperCase().replace(/\s/g,'');if(/^EP(?:-|_)/.test(n)||n==='EP'||n.startsWith('EP-'))return'promotion';if(/^E\d+(?:-|_)/.test(n)||/^E\d+$/.test(n))return'regular';return n.startsWith('EP')?'promotion':'regular';}
+function rarityKind(c){const n=String(c.no||'').toUpperCase().replace(/\s/g,'');if(/PR$/.test(n))return'premium';if(/N$/.test(n))return'normal';return'normal';}
 function accessoryClass(c){return c.category==='アクセサリー'?' accessory':'';}
 function updateFilterStatus(total){$('#filter-status').textContent=`${total}枚中 ${Math.min((currentPage-1)*PER_PAGE+1,total)}〜${Math.min(currentPage*PER_PAGE,total)}枚を表示`}
 function renderCards(){
  const q=($('#search-input').value||'').toLowerCase();const cat=selectedCat;
- const list=cards.filter(c=>(selectedSeries==='all'||seriesKind(c)===selectedSeries)&&(selectedType==='all'||c.type===selectedType)&&(cat==='all'||c.category===cat)&&(!ownedOnly||c.owned)&&(!favoriteOnly||c.favorite)&&((c.name+' '+(c.no||'')).toLowerCase().includes(q)));
+ const list=cards.filter(c=>(selectedSeries==='all'||seriesKind(c)===selectedSeries)&&(selectedRarity==='all'||rarityKind(c)===selectedRarity)&&(selectedType==='all'||c.type===selectedType)&&(cat==='all'||c.category===cat)&&(!ownedOnly||c.owned)&&(!favoriteOnly||c.favorite)&&((c.name+' '+(c.no||'')).toLowerCase().includes(q)));
  const totalPages=Math.max(1,Math.ceil(list.length/PER_PAGE));if(currentPage>totalPages)currentPage=totalPages;
  const pageItems=list.slice((currentPage-1)*PER_PAGE,currentPage*PER_PAGE);const grid=$('#binder-grid');grid.innerHTML='';updateFilterStatus(list.length);
  if(!pageItems.length){grid.innerHTML=`<div class="empty">該当するカードがありません。</div>`;$('#pagination').innerHTML='';return;}
@@ -143,7 +153,7 @@ function renderCards(){
  <div class="card-flip${flipped.has(c.id)?' flipped':''}" tabindex="0" role="button">
   <div class="card-inner">
    <div class="card-face card-front ${esc(c.type)}${accessoryClass(c)}">
-    <div class="badge">${esc(TYPE_JA[c.type]||c.type)}</div><div class="series-badge">${seriesKind(c)==='promotion'?'EP':'E'}</div>
+    <div class="badge">${esc(TYPE_JA[c.type]||c.type)}</div><div class="series-badge">${seriesKind(c)==='promotion'?'EP':'E'}</div><div class="rarity-badge">${rarityKind(c)==='premium'?'PR':'N'}</div>
     <img class="card-img" ${imgAttrs(c,c.img)} alt="${esc(c.name)}" loading="lazy"><div class="side-tag">表面 ↻</div>
    </div>
    <div class="card-face card-back ${esc(c.type)}${accessoryClass(c)}">
@@ -175,6 +185,7 @@ $('#filter-toggle').onclick=()=>{const card=$('#filter-card');const open=card.cl
 $('#search-input').oninput=()=>{currentPage=1;renderCards()};
 $('#category-filters').onclick=e=>{const b=e.target.closest('[data-cat]');if(!b)return;selectedCat=b.dataset.cat;currentPage=1;$$('#category-filters [data-cat]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
 $('#series-filters').onclick=e=>{const b=e.target.closest('[data-series]');if(!b)return;selectedSeries=b.dataset.series;currentPage=1;$$('#series-filters [data-series]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
+$('#rarity-filters').onclick=e=>{const b=e.target.closest('[data-rarity]');if(!b)return;selectedRarity=b.dataset.rarity;currentPage=1;$$('#rarity-filters [data-rarity]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
 $('#type-filters').onclick=e=>{const b=e.target.closest('[data-type]');if(!b)return;selectedType=b.dataset.type;currentPage=1;$$('#type-filters [data-type]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
 $('#status-filters').onclick=e=>{const o=e.target.closest('[data-owned]');if(o){ownedOnly=!ownedOnly;o.classList.toggle('active',ownedOnly);$('#status-filters [data-status=\"all\"]')?.classList.toggle('active',!ownedOnly&&!favoriteOnly);currentPage=1;renderCards();return}const f=e.target.closest('[data-favorite]');if(f){favoriteOnly=!favoriteOnly;f.classList.toggle('active',favoriteOnly);$('#status-filters [data-status=\"all\"]')?.classList.toggle('active',!ownedOnly&&!favoriteOnly);currentPage=1;renderCards();return}const all=e.target.closest('[data-status=\"all\"]');if(all){ownedOnly=false;favoriteOnly=false;$$('#status-filters [data-owned], #status-filters [data-favorite]').forEach(x=>x.classList.remove('active'));all.classList.add('active');currentPage=1;renderCards()}};
 $('#qr-close').onclick=()=>$('#qr-modal').classList.remove('active');$('#qr-modal').onclick=e=>{if(e.target.id==='qr-modal')$('#qr-modal').classList.remove('active')};$('#qr-scan-close').onclick=closeScanner;$('#qr-scan-modal').onclick=e=>{if(e.target.id==='qr-scan-modal')closeScanner()};

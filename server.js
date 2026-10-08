@@ -3298,42 +3298,30 @@ http.createServer(
               parts[2]
             ] || {};
 
-          if (
-            typeof body.qr ===
-            'string'
-          ) {
-            data[uid][
-              parts[2]
-            ].qr =
-              body.qr.slice(
-                0,
-                200
-              );
+          const userCard = data[uid][parts[2]];
+
+          /*
+           * QRはカード本体(cards.json)には保存しない。
+           * 必ず「ログイン中のユーザーID → カードID」の
+           * user-data.json に保存する。
+           * これによりユーザーごとのQRを完全に分離する。
+           */
+          if (typeof body.qr === 'string') {
+            userCard.qr = body.qr.slice(0, 200);
           }
 
-          if (
-            typeof body.owned ===
-            'boolean'
-          ) {
-            data[uid][
-              parts[2]
-            ].owned =
-              body.owned;
+          if (typeof body.owned === 'boolean') {
+            userCard.owned = body.owned;
           }
 
-          if (
-            typeof body.favorite ===
-            'boolean'
-          ) {
-            data[uid][
-              parts[2]
-            ].favorite =
-              body.favorite;
+          if (typeof body.favorite === 'boolean') {
+            userCard.favorite = body.favorite;
           }
 
-          saveUserData(
-            data
-          );
+          userCard.updatedAt = Date.now();
+
+          /* 書き込み後すぐに読み直せる形で永続化 */
+          saveUserData(data);
 
           const updated =
             publicCardsForUser(
