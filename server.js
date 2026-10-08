@@ -626,80 +626,65 @@ function publicCardsForUser(
   cards,
   userId
 ) {
-  const allData =
-    loadUserData();
+  const allData = loadUserData();
+  const users = loadUsers();
 
-  const users =
-    loadUsers();
+  const nameById = new Map(
+    users.map((u) => [String(u.id), String(u.username || '')])
+  );
 
-  const nameById =
-    new Map(
-      users.map(
-        (u) => [
-          u.id,
-          u.username
-        ]
-      )
-    );
-
-  const mine =
-    allData[userId] || {};
+  /*
+   * ここでは必ず「ログイン中のユーザーID」を基準にする。
+   * 自分の所持状態と、他ユーザーの所持状態は完全に別々に作る。
+   */
+  const myBucket =
+    allData && typeof allData === 'object' &&
+    allData[userId] && typeof allData[userId] === 'object'
+      ? allData[userId]
+      : {};
 
   return cards.map((c) => {
     const owners = [];
-    const ownerSet = new Set();
 
-    for (
-      const [
-        uid,
-        bucket
-      ] of Object.entries(
-        allData
-      )
-    ) {
-      if (
-        uid === userId
-      ) {
-        continue;
-      }
+    for (const [uid, bucket] of Object.entries(allData || {})) {
+      const normalizedUid = String(uid);
+
+      /* 自分自身は「他ユーザー」の一覧には絶対に入れない */
+      if (normalizedUid === String(userId)) continue;
 
       if (
-        bucket?.[c.id]?.owned
+        bucket &&
+        typeof bucket === 'object' &&
+        bucket[c.id] &&
+        bucket[c.id].owned === true
       ) {
-        const name =
-          nameById.get(uid);
-
-        if (name && !ownerSet.has(name)) {
-          ownerSet.add(name);
-          owners.push(name);
-        }
+        const name = nameById.get(normalizedUid);
+        if (name) owners.push({ id: normalizedUid, name });
       }
     }
 
-    owners.sort(
-      (a, b) =>
-        a.localeCompare(
-          b,
-          'ja'
-        )
+    owners.sort((a, b) =>
+      a.name.localeCompare(b.name, 'ja')
     );
 
     return withSeries({
       ...c,
-      owned:
-        !!mine[c.id]?.owned,
-      qr:
-        String(
-          mine[c.id]?.qr ||
-            ''
-        ),
-      favorite:
-        !!mine[c.id]?.favorite,
-      owners
+
+      /* 自分の所持状態。ここ以外から取得しない */
+      owned: myBucket[c.id]?.owned === true,
+
+      /* 自分のQR */
+      qr: String(myBucket[c.id]?.qr || ''),
+
+      /* 自分のお気に入り */
+      favorite: myBucket[c.id]?.favorite === true,
+
+      /* 他ユーザーの所持者だけ */
+      owners: owners.map((o) => o.name),
+      ownerIds: owners.map((o) => o.id)
     });
   });
 }
-
 /* ===================== 公式HTML取り込み ===================== */
 
 const guess = (

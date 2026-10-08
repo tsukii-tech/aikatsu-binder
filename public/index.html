@@ -158,7 +158,7 @@ function renderCards(){
    <button class="ownership-btn ${c.owned?'is-owned':''}" data-a="owned" ${saving?'disabled':''}>${saving?'保存中…':c.owned?'✓ 所持中':'＋ 所持登録'}</button>
   </div>
   <div class="qr-line">${c.qr?`<span class="qr-code-text">QR登録済み</span>`:'<span class="qr-empty">QR未登録</span>'}<button class="mini-btn" data-a="qr-edit">${c.qr?'変更':'登録'}</button><button class="mini-btn scan-btn" data-a="qr-scan">読み取り</button></div>
-  <div class="owners-box">${Array.isArray(c.owners)&&c.owners.length?`👥 ${c.owners.map(esc).join('、')}`:'👥 他のユーザーの所持なし'}</div>
+  <div class="owners-box">${Array.isArray(c.owners)&&c.owners.length?`👥 他のユーザー：${c.owners.map(esc).join('、')}`:'👥 他のユーザーの所持なし'}</div>
   <button class="action-btn btn-qr" data-a="qr">QR表示</button>
  </div>`;grid.appendChild(el)});
  renderPagination(totalPages);
