@@ -117,27 +117,30 @@ async function refreshAdminStatus() {
 
 function renderLoginForm() {
   const setup = !admin.hasPassword;
-  $('#login-title').textContent = setup ? '管理者パスワードの初期設定' : '管理者ログイン';
+  $('#login-title').textContent = setup ? '管理者アカウントの初期設定' : '管理者ログイン';
   $('#login-body').innerHTML = setup ? `
-    <p style="font-size:.85rem;color:#555;line-height:1.7;text-align:left">最初に管理者パスワードを設定してください。パスワードは12文字以上にし、他のサービスと使い回さない強いものを使ってください。<br>
-    パスワード生成ツール（各ブラウザやパスワード管理アプリの「パスワード生成」機能など）で作った文字列の利用をおすすめします。設定したパスワードはハッシュ化して保存され、平文では保存されません。</p>
-    <div class="form-group"><label>新しいパスワード（12文字以上）</label><input type="password" id="lg-pw1" class="form-control" autocomplete="new-password"></div>
+    <p style="font-size:.85rem;color:#555;line-height:1.7;text-align:left">管理者のユーザー名とパスワードを設定してください。ユーザー名・パスワードの長さや文字種に制限はありません。設定したパスワードはハッシュ化して保存され、平文では保存されません。</p>
+    <div class="form-group"><label>ユーザー名</label><input type="text" id="lg-name" class="form-control" autocomplete="username"></div>
+    <div class="form-group"><label>新しいパスワード</label><input type="password" id="lg-pw1" class="form-control" autocomplete="new-password"></div>
     <div class="form-group"><label>確認のため再入力</label><input type="password" id="lg-pw2" class="form-control" autocomplete="new-password"></div>
     <button class="btn-submit secondary" id="lg-submit">設定してログイン</button>
   ` : `
+    <div class="form-group"><label>管理者ユーザー名</label><input type="text" id="lg-name" class="form-control" autocomplete="username"></div>
     <div class="form-group"><label>管理者パスワード</label><input type="password" id="lg-pw1" class="form-control" autocomplete="current-password"></div>
     <button class="btn-submit secondary" id="lg-submit">ログイン</button>
   `;
+  if ($('#lg-name')) $('#lg-name').value = setup ? '' : (admin.username || '');
   $('#lg-submit').onclick = async () => {
+    const name = $('#lg-name').value.trim();
     const pw1 = $('#lg-pw1').value;
+    if (!name) return toast('ユーザー名を入力してください');
     try {
       if (setup) {
         const pw2 = $('#lg-pw2').value;
-        if (pw1.length < 12) return toast('パスワードは12文字以上にしてください');
         if (pw1 !== pw2) return toast('確認用パスワードが一致しません');
-        await api('admin/setup', 'POST', { password: pw1 });
+        await api('admin/setup', 'POST', { username: name, password: pw1 });
       } else {
-        await api('admin/login', 'POST', { password: pw1 });
+        await api('admin/login', 'POST', { username: name, password: pw1 });
       }
       await refreshAdminStatus();
       renderGate();
@@ -568,25 +571,38 @@ function renderAdminUsers() {
 function renderAdminAccount() {
   const box = $('#admin-sub-account'); if (!box) return;
   box.innerHTML = `
-    <h3 style="margin-top:0;color:#8e24aa">パスワードの変更</h3>
-    <p style="font-size:.85rem;color:#555">パスワードはハッシュ化して保存されており、サーバーにも平文では残りません。定期的な変更や、パスワード生成ツールで作った強いパスワードの利用をおすすめします。</p>
-    <div class="form-group"><label>現在のパスワード</label><input type="password" id="ac-cur" class="form-control" autocomplete="current-password"></div>
-    <div class="form-group"><label>新しいパスワード（12文字以上）</label><input type="password" id="ac-new1" class="form-control" autocomplete="new-password"></div>
-    <div class="form-group"><label>新しいパスワード（確認）</label><input type="password" id="ac-new2" class="form-control" autocomplete="new-password"></div>
-    <button class="btn-submit secondary" id="ac-submit" style="margin-bottom:20px">パスワードを変更</button>
+    <h3 style="margin-top:0;color:#8e24aa">管理者アカウント設定</h3>
+    <p style="font-size:.85rem;color:#555;line-height:1.7">管理者のユーザー名・パスワード・テーマカラー・アイコンを設定できます。ユーザー名とパスワードには長さ・文字種の制限を設けていません。</p>
+    <div class="form-group"><label>ユーザー名</label><input type="text" id="ac-name" class="form-control" autocomplete="username"></div>
+    <div class="form-group"><label>新しいパスワード</label><input type="password" id="ac-pw" class="form-control" autocomplete="new-password"><small style="color:#888">変更しない場合は空欄にしてください。</small></div>
+    <div class="form-group"><label>テーマカラー</label><div class="chip-row" id="ac-colors"></div></div>
+    <div class="form-group"><label>アイコン</label><div class="chip-row" id="ac-icons"></div></div>
+    <button class="btn-submit secondary" id="ac-save" style="margin-bottom:20px">設定を保存</button>
     <hr style="border:0;border-top:1px solid #eee;margin-bottom:20px">
-    <p style="font-size:.85rem;color:#555">ログインは12時間で自動的に切れます。この管理サイトはパソコンからのアクセスのみ利用できます。一般ユーザー向けサイトとはログイン状態が独立しています。</p>
+    <p style="font-size:.85rem;color:#555">ログインは12時間で自動的に切れます。この管理サイトはパソコンからのアクセスのみ利用できます。</p>
     <button class="btn-submit neutral" id="ac-logout">ログアウト</button>
   `;
-  $('#ac-submit').onclick = async () => {
-    const cur = $('#ac-cur').value, n1 = $('#ac-new1').value, n2 = $('#ac-new2').value;
-    if (n1.length < 12) return toast('新しいパスワードは12文字以上にしてください');
-    if (n1 !== n2) return toast('確認用パスワードが一致しません');
+  let selectedColor = 'pink', selectedIcon = 'heart', colors = ['pink','red','orange','yellow','blue','purple'], icons = ['heart','diamond','spade','club'];
+  const labels = {pink:'ピンク',red:'レッド',orange:'オレンジ',yellow:'イエロー',blue:'ブルー',purple:'パープル'};
+  const marks = {heart:'♥',diamond:'♦',spade:'♠',club:'♣'};
+  const draw = () => {
+    $('#ac-colors').innerHTML = colors.map(v => `<button type="button" class="chip${v===selectedColor?' sel':''}" data-color="${v}">${labels[v]||v}</button>`).join('');
+    $('#ac-icons').innerHTML = icons.map(v => `<button type="button" class="chip${v===selectedIcon?' sel':''}" data-icon="${v}">${marks[v]||v}</button>`).join('');
+  };
+  $('#ac-colors').onclick = e => { const b=e.target.closest('[data-color]'); if(!b)return; selectedColor=b.dataset.color; draw(); };
+  $('#ac-icons').onclick = e => { const b=e.target.closest('[data-icon]'); if(!b)return; selectedIcon=b.dataset.icon; draw(); };
+  (async()=>{
     try {
-      await api('admin/password', 'POST', { current: cur, next: n1 });
-      toast('パスワードを変更しました');
-      $('#ac-cur').value = ''; $('#ac-new1').value = ''; $('#ac-new2').value = '';
-    } catch (err) { toast(err.message); }
+      const a=await api('admin/profile');
+      $('#ac-name').value=a.username||''; selectedColor=a.color||'pink'; selectedIcon=a.icon||'heart'; colors=a.colors||colors; icons=a.icons||icons; draw();
+    } catch(err) { toast(err.message); }
+  })();
+  $('#ac-save').onclick = async () => {
+    const username=$('#ac-name').value.trim(), password=$('#ac-pw').value;
+    if(!username)return toast('ユーザー名を入力してください');
+    const body={username,color:selectedColor,icon:selectedIcon}; if(password!=='')body.password=password;
+    try { const a=await api('admin/profile','PUT',body); $('#ac-name').value=a.username||username; $('#ac-pw').value=''; selectedColor=a.color||selectedColor; selectedIcon=a.icon||selectedIcon; draw(); toast('管理者設定を保存しました'); }
+    catch(err){toast(err.message)}
   };
   $('#ac-logout').onclick = doLogout;
 }

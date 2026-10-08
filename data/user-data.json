@@ -6,15 +6,16 @@
       "qr": ""
     },
     "1790255553942-2": {
-      "owned": true,
-      "favorite": true
-    },
-    "1790255553942-1": {
       "owned": false,
       "favorite": false
     },
+    "1790255553942-1": {
+      "owned": true,
+      "favorite": true
+    },
     "1790255553942-3": {
-      "owned": true
+      "owned": false,
+      "favorite": true
     },
     "1790255553942-5": {
       "owned": true
@@ -23,28 +24,28 @@
       "owned": true
     },
     "1790255553942-4": {
-      "owned": true
+      "owned": false
     },
     "1790255553942-8": {
-      "owned": true
+      "owned": false
     },
     "1790582897170-30": {
       "owned": false
     },
     "1790255553956-49": {
-      "owned": true
+      "owned": false
     },
     "1790255553956-48": {
-      "owned": true
+      "owned": false
     },
     "1790255553942-13": {
       "owned": false
     },
     "1790255553942-12": {
-      "owned": true
+      "owned": false
     },
     "1790255553943-16": {
-      "owned": true
+      "owned": false
     },
     "1790255553942-11": {
       "owned": false
@@ -54,8 +55,8 @@
       "owned": true
     },
     "1790255553955-46": {
-      "favorite": true,
-      "owned": true
+      "favorite": false,
+      "owned": false
     }
   },
   "1b446ad1c7b41888bb7d3443b5cae086": {
@@ -81,6 +82,24 @@
       "owned": true
     },
     "1790255553943-30": {
+      "owned": true
+    },
+    "1790255553941-0": {
+      "owned": true
+    },
+    "1790255553942-8": {
+      "owned": false
+    },
+    "1790255553942-9": {
+      "owned": true
+    },
+    "1790255553942-7": {
+      "owned": false
+    },
+    "1790255553942-5": {
+      "owned": true
+    },
+    "1790255553942-6": {
       "owned": true
     }
   }

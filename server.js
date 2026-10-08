@@ -227,7 +227,10 @@ const stripPublicOnlyFields = (body) => {
 const sendJson = (res, code, obj) => {
   res.writeHead(code, {
     'Content-Type':
-      'application/json; charset=utf-8'
+      'application/json; charset=utf-8',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
   });
 
   res.end(
@@ -644,6 +647,7 @@ function publicCardsForUser(
 
   return cards.map((c) => {
     const owners = [];
+    const ownerSet = new Set();
 
     for (
       const [
@@ -665,7 +669,8 @@ function publicCardsForUser(
         const name =
           nameById.get(uid);
 
-        if (name) {
+        if (name && !ownerSet.has(name)) {
+          ownerSet.add(name);
           owners.push(name);
         }
       }
@@ -2788,7 +2793,15 @@ http.createServer(
                 createdAt:
                   u.createdAt,
                 updatedAt:
-                  u.updatedAt
+                  u.updatedAt,
+                color:
+                  ADMIN_COLORS.includes(u.color)
+                    ? u.color
+                    : 'pink',
+                icon:
+                  ADMIN_ICONS.includes(u.icon)
+                    ? u.icon
+                    : 'heart'
               })
             )
           );
@@ -2816,31 +2829,12 @@ http.createServer(
                 ''
             );
 
-          if (
-            !/^[A-Za-z0-9_@.-]{3,40}$/.test(
-              username
-            )
-          ) {
+          if (!username) {
             return sendJson(
               res,
               400,
               {
-                error:
-                  'ユーザー名は3〜40文字の英数字・_・@・.-で設定してください'
-              }
-            );
-          }
-
-          if (
-            password.length <
-            8
-          ) {
-            return sendJson(
-              res,
-              400,
-              {
-                error:
-                  'パスワードは8文字以上にしてください'
+                error: 'ユーザー名を入力してください'
               }
             );
           }
@@ -2878,6 +2872,14 @@ http.createServer(
             ...makeHash(
               password
             ),
+            color:
+              ADMIN_COLORS.includes(body.color)
+                ? body.color
+                : 'pink',
+            icon:
+              ADMIN_ICONS.includes(body.icon)
+                ? body.icon
+                : 'heart',
             createdAt:
               Date.now(),
             updatedAt:
@@ -3026,17 +3028,12 @@ http.createServer(
                 body.username
               ).trim();
 
-            if (
-              !/^[A-Za-z0-9_@.-]{3,40}$/.test(
-                username
-              )
-            ) {
+            if (!username) {
               return sendJson(
                 res,
                 400,
                 {
-                  error:
-                    'ユーザー名は3〜40文字の英数字・_・@・.-で設定してください'
+                  error: 'ユーザー名を入力してください'
                 }
               );
             }
@@ -3072,26 +3069,26 @@ http.createServer(
                 body.password
               );
 
-            if (
-              password.length <
-              8
-            ) {
-              return sendJson(
-                res,
-                400,
-                {
-                  error:
-                    'パスワードは8文字以上にしてください'
-                }
-              );
-            }
-
             Object.assign(
               users[i],
               makeHash(
                 password
               )
             );
+          }
+
+          if (body.color !== undefined) {
+            if (!ADMIN_COLORS.includes(body.color)) {
+              return sendJson(res, 400, { error: '選択できないカラーです' });
+            }
+            users[i].color = body.color;
+          }
+
+          if (body.icon !== undefined) {
+            if (!ADMIN_ICONS.includes(body.icon)) {
+              return sendJson(res, 400, { error: '選択できないアイコンです' });
+            }
+            users[i].icon = body.icon;
           }
 
           users[i].updatedAt =
@@ -3110,7 +3107,11 @@ http.createServer(
               username:
                 users[i].username,
               updatedAt:
-                users[i].updatedAt
+                users[i].updatedAt,
+              color:
+                users[i].color || 'pink',
+              icon:
+                users[i].icon || 'heart'
             }
           );
         }

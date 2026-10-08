@@ -49,6 +49,13 @@
         <button class="filter-chip type-cool" data-type="cool">クール</button>
         <button class="filter-chip type-sexy" data-type="sexy">セクシー</button>
         <button class="filter-chip type-pop" data-type="pop">ポップ</button>
+      </div>
+    </div>
+
+    <div class="filter-section status-section">
+      <div class="filter-section-title"><span class="filter-dot status-dot"></span><span>マイカード</span><small>自分の登録状況</small></div>
+      <div class="filter-group" id="status-filters">
+        <button class="filter-chip status-all active" data-status="all">すべて</button>
         <button class="filter-chip owned-filter" data-owned="1">✓ 所持済み</button>
         <button class="filter-chip favorite-filter" data-favorite="1">♥ お気に入り</button>
       </div>
@@ -118,7 +125,7 @@ let cards=[],selectedType='all',selectedSeries='all',selectedCat='all',ownedOnly
 const PER_PAGE=10,flipped=new Set(),savingCards=new Set();
 let scannerStream=null,scanTimer=null;
 
-async function api(path,method='GET',body){const r=await fetch('/api/'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'エラーが発生しました');return d;}
+async function api(path,method='GET',body){const isGet=method==='GET';const url='/api/'+path+(isGet?((path.includes('?')?'&':'?')+'_t='+Date.now()):'');const r=await fetch(url,{method,cache:'no-store',headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},body:body===undefined?undefined:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'エラーが発生しました');return d;}
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3500);}
 function ph(t,c){return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="${PH_COL[t]||'#eee'}"/><text x="150" y="185" font-size="110" text-anchor="middle">${PH_ICO[c]||'🎴'}</text></svg>`);}
 function imgAttrs(c,url){const raw=/^https?:/.test(url||'')?url:'';return `data-type="${esc(c.type)}" data-cat="${esc(c.category)}" data-raw="${esc(raw)}" referrerpolicy="no-referrer" src="${esc(url)||ph(c.type,c.category)}"`}
@@ -168,9 +175,14 @@ $('#filter-toggle').onclick=()=>{const card=$('#filter-card');const open=card.cl
 $('#search-input').oninput=()=>{currentPage=1;renderCards()};
 $('#category-filters').onclick=e=>{const b=e.target.closest('[data-cat]');if(!b)return;selectedCat=b.dataset.cat;currentPage=1;$$('#category-filters [data-cat]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
 $('#series-filters').onclick=e=>{const b=e.target.closest('[data-series]');if(!b)return;selectedSeries=b.dataset.series;currentPage=1;$$('#series-filters [data-series]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
-$('#type-filters').onclick=e=>{const o=e.target.closest('[data-owned]');if(o){ownedOnly=!ownedOnly;o.classList.toggle('active',ownedOnly);currentPage=1;renderCards();return}const f=e.target.closest('[data-favorite]');if(f){favoriteOnly=!favoriteOnly;f.classList.toggle('active',favoriteOnly);currentPage=1;renderCards();return}const b=e.target.closest('[data-type]');if(!b)return;selectedType=b.dataset.type;currentPage=1;$$('#type-filters [data-type]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
+$('#type-filters').onclick=e=>{const b=e.target.closest('[data-type]');if(!b)return;selectedType=b.dataset.type;currentPage=1;$$('#type-filters [data-type]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
+$('#status-filters').onclick=e=>{const o=e.target.closest('[data-owned]');if(o){ownedOnly=!ownedOnly;o.classList.toggle('active',ownedOnly);$('#status-filters [data-status=\"all\"]')?.classList.toggle('active',!ownedOnly&&!favoriteOnly);currentPage=1;renderCards();return}const f=e.target.closest('[data-favorite]');if(f){favoriteOnly=!favoriteOnly;f.classList.toggle('active',favoriteOnly);$('#status-filters [data-status=\"all\"]')?.classList.toggle('active',!ownedOnly&&!favoriteOnly);currentPage=1;renderCards();return}const all=e.target.closest('[data-status=\"all\"]');if(all){ownedOnly=false;favoriteOnly=false;$$('#status-filters [data-owned], #status-filters [data-favorite]').forEach(x=>x.classList.remove('active'));all.classList.add('active');currentPage=1;renderCards()}};
 $('#qr-close').onclick=()=>$('#qr-modal').classList.remove('active');$('#qr-modal').onclick=e=>{if(e.target.id==='qr-modal')$('#qr-modal').classList.remove('active')};$('#qr-scan-close').onclick=closeScanner;$('#qr-scan-modal').onclick=e=>{if(e.target.id==='qr-scan-modal')closeScanner()};
 async function refreshUser(){try{user=await api('auth/status')}catch{user={authed:false,username:''}}$('#user-login-modal').classList.toggle('active',!user.authed);$('#user-name-display').textContent=user.authed?`ログイン中：${user.username}`:''}
+let refreshingCards=false;
+async function refreshCardsSilently(){if(!user.authed||document.hidden||refreshingCards||savingCards.size)return;refreshingCards=true;try{const fresh=await api('cards');cards=fresh;renderCards()}catch{}finally{refreshingCards=false}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshCardsSilently()});
+setInterval(refreshCardsSilently,10000);
 $('#user-login-form').onsubmit=async e=>{e.preventDefault();try{const r=await api('auth/login','POST',{username:$('#user-login-name').value.trim(),password:$('#user-login-password').value});user={authed:true,username:r.username};$('#user-login-password').value='';$('#user-login-modal').classList.remove('active');cards=await api('cards');currentPage=1;renderCards();toast('ログインしました')}catch(err){toast(err.message)}};
 $('#user-logout-btn').onclick=async()=>{try{await api('auth/logout','POST')}catch{}user={authed:false,username:''};cards=[];renderCards();$('#user-login-modal').classList.add('active');toast('ログアウトしました')};
 (async()=>{await refreshUser();if(user.authed){try{cards=await api('cards');renderCards()}catch{toast('サーバーに接続できません')}}})();
