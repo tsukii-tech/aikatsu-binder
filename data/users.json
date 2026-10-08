@@ -38,5 +38,15 @@
     "icon": "diamond",
     "createdAt": 1791427868336,
     "updatedAt": 1791427868336
+  },
+  {
+    "id": "07f0c99923533853b2afe80aba73269e",
+    "username": "綾花",
+    "salt": "0cb83ad34f651c8205fa24e390566807",
+    "hash": "5a2e3a33d38117c045ff85661378b5df071f0588ca2cbe5d41d0498315a4b581c96f493bae56a9a2c1881d2628d4a17a13837e20b85627c40fe5310440600062",
+    "color": "purple",
+    "icon": "spade",
+    "createdAt": 1791464937129,
+    "updatedAt": 1791464960409
   }
 ]

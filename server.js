@@ -76,14 +76,6 @@ const seriesOf = (no) => {
   return m ? `${m[1]}弾` : '';
 };
 
-/* 登録IDの末尾からレアリティを判定する。例: E1-01_N / E1-02_PR */
-const rarityOf = (no) => {
-  const n = String(no || '').toUpperCase().replace(/\s/g, '');
-  if (/(?:_|-|\/)PR$/.test(n) || n === 'PR') return 'premium';
-  if (/(?:_|-|\/)N$/.test(n) || n === 'N') return 'normal';
-  return '';
-};
-
 /* ===================== ファイル初期化 ===================== */
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -216,8 +208,7 @@ const clean = (c, id) => ({
 
 const withSeries = (c) => ({
   ...c,
-  series: seriesOf(c.no),
-  rarity: rarityOf(c.no)
+  series: seriesOf(c.no)
 });
 
 /*
@@ -351,11 +342,14 @@ function makeLimiter(
 
 /* ===================== セッション ===================== */
 
-const SESSION_TTL =
-  12 * 60 * 60 * 1000;
-
-const USER_SESSION_TTL =
-  14 * 24 * 60 * 60 * 1000;
+/*
+ * ログイン期限は設けない。
+ * セッションはサーバーが稼働している間、有効なままにする。
+ * ブラウザ側のCookieも長期間保持する。
+ */
+const SESSION_TTL = null;
+const USER_SESSION_TTL = null;
+const COOKIE_MAX_AGE_SEC = 2147483647;
 
 const sessions = new Map();
 
@@ -375,8 +369,7 @@ const newSession = (
       role,
       userId:
         userId || null,
-      exp:
-        Date.now() + ttl
+      exp: null
     }
   );
 
@@ -401,22 +394,7 @@ const getSession = (
     return null;
   }
 
-  if (
-    s.exp <
-    Date.now()
-  ) {
-    sessions.delete(sid);
-
-    return null;
-  }
-
-  s.exp =
-    Date.now() +
-    (
-      role === 'admin'
-        ? SESSION_TTL
-        : USER_SESSION_TTL
-    );
+  /* ログイン期限なし。expは互換用に残すが判定には使用しない。 */
 
   return s;
 };
@@ -490,7 +468,7 @@ const setCookie = (
     'Set-Cookie',
     `${name}=${encodeURIComponent(
       value
-    )}; HttpOnly; Path=/; Max-Age=${maxAgeSec}; SameSite=Strict${secure}`
+    )}; HttpOnly; Path=/; Max-Age=${maxAgeSec ?? COOKIE_MAX_AGE_SEC}; SameSite=Strict${secure}`
   );
 };
 
@@ -525,17 +503,9 @@ const isPcUA = (
   );
 };
 
-const adminLoginLimiter =
-  makeLimiter(
-    10,
-    15 * 60 * 1000
-  );
-
-const userLoginLimiter =
-  makeLimiter(
-    10,
-    15 * 60 * 1000
-  );
+/* ログイン回数制限は設けない。 */
+const adminLoginLimiter = () => false;
+const userLoginLimiter = () => false;
 
 function requireAdmin(
   req,
@@ -631,69 +601,60 @@ function verifyUserPassword(
 /*
  * 一般ユーザー用カード一覧。
  */
-function publicCardsForUser(
-  cards,
-  userId
-) {
+function findUserCardData(bucket, card) {
+  if (!bucket || typeof bucket !== 'object') return {};
+
+  /* 現行ID → カード番号 → 保存済みno の順で探す。 */
+  if (bucket[card.id]) return bucket[card.id];
+
+  const no = normalizeCardNo(card.no);
+  if (no && bucket[no]) return bucket[no];
+
+  for (const value of Object.values(bucket)) {
+    if (value && typeof value === 'object' && normalizeCardNo(value.no) === no) {
+      return value;
+    }
+  }
+
+  return {};
+}
+
+function publicCardsForUser(cards, userId) {
   const allData = loadUserData();
   const users = loadUsers();
-
-  const nameById = new Map(
-    users.map((u) => [String(u.id), String(u.username || '')])
-  );
-
-  /*
-   * ここでは必ず「ログイン中のユーザーID」を基準にする。
-   * 自分の所持状態と、他ユーザーの所持状態は完全に別々に作る。
-   */
-  const myBucket =
-    allData && typeof allData === 'object' &&
-    allData[userId] && typeof allData[userId] === 'object'
-      ? allData[userId]
-      : {};
+  const nameById = new Map(users.map((u) => [u.id, u.username]));
+  const mine = allData[userId] || {};
 
   return cards.map((c) => {
+    const mineData = findUserCardData(mine, c);
     const owners = [];
+    const ownerIds = [];
 
-    for (const [uid, bucket] of Object.entries(allData || {})) {
-      const normalizedUid = String(uid);
-
-      /* 自分自身は「他ユーザー」の一覧には絶対に入れない */
-      if (normalizedUid === String(userId)) continue;
-
-      if (
-        bucket &&
-        typeof bucket === 'object' &&
-        bucket[c.id] &&
-        bucket[c.id].owned === true
-      ) {
-        const name = nameById.get(normalizedUid);
-        if (name) owners.push({ id: normalizedUid, name });
+    for (const [uid, bucket] of Object.entries(allData)) {
+      const data = findUserCardData(bucket, c);
+      if (data?.owned) {
+        const name = nameById.get(uid);
+        if (name) {
+          owners.push(name);
+          ownerIds.push(uid);
+        }
       }
     }
 
-    owners.sort((a, b) =>
-      a.name.localeCompare(b.name, 'ja')
-    );
+    owners.sort((a, b) => a.localeCompare(b, 'ja'));
 
     return withSeries({
       ...c,
-
-      /* 自分の所持状態。ここ以外から取得しない */
-      owned: myBucket[c.id]?.owned === true,
-
-      /* 自分のQR */
-      qr: String(myBucket[c.id]?.qr || ''),
-
-      /* 自分のお気に入り */
-      favorite: myBucket[c.id]?.favorite === true,
-
-      /* 他ユーザーの所持者だけ */
-      owners: owners.map((o) => o.name),
-      ownerIds: owners.map((o) => o.id)
+      /* 所持・お気に入り・QRは必ずログインユーザーのデータから決める。 */
+      owned: !!mineData.owned,
+      favorite: !!mineData.favorite,
+      qr: String(mineData.qr || ''),
+      owners,
+      ownerIds
     });
   });
 }
+
 /* ===================== 公式HTML取り込み ===================== */
 
 const guess = (
@@ -1524,6 +1485,48 @@ function tidyAndMigrate(
   return result;
 }
 
+/*
+ * カードIDがGitHub更新等で変わっても、カード番号(no)をキーにして
+ * ユーザーごとの所持・お気に入り・QRを引き継げるようにする。
+ */
+function migrateUserDataToCardNumbers(cards) {
+  const data = loadUserData();
+  let changed = false;
+
+  for (const userId of Object.keys(data)) {
+    const bucket = data[userId];
+    if (!bucket || typeof bucket !== 'object') continue;
+
+    for (const card of cards) {
+      const no = normalizeCardNo(card.no);
+      if (!no) continue;
+
+      let found = bucket[card.id];
+      if (!found) {
+        found = bucket[no];
+      }
+      if (!found) {
+        for (const value of Object.values(bucket)) {
+          if (value && typeof value === 'object' && normalizeCardNo(value.no) === no) {
+            found = value;
+            break;
+          }
+        }
+      }
+
+      if (!found) continue;
+
+      const next = { ...found, no };
+      if (JSON.stringify(bucket[no]) !== JSON.stringify(next)) {
+        bucket[no] = next;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) saveUserData(data);
+}
+
 /* ===================== 管理者本体 ===================== */
 
 /*
@@ -1836,6 +1839,9 @@ const imgMime = {
     'image/gif'
 };
 
+/* 起動時にユーザーデータをカード番号基準へ移行。 */
+try { migrateUserDataToCardNumbers(load()); } catch (e) { console.error('[migrate user-data]', e.message); }
+
 /* ===================== HTTP SERVER ===================== */
 
 http.createServer(
@@ -2066,8 +2072,7 @@ http.createServer(
             u.id,
             USER_SESSION_TTL
           ),
-          USER_SESSION_TTL /
-            1000
+          COOKIE_MAX_AGE_SEC
         );
 
         return sendJson(
@@ -2280,8 +2285,7 @@ http.createServer(
             null,
             SESSION_TTL
           ),
-          SESSION_TTL /
-            1000
+          COOKIE_MAX_AGE_SEC
         );
 
         return sendJson(
@@ -2392,8 +2396,7 @@ http.createServer(
             null,
             SESSION_TTL
           ),
-          SESSION_TTL /
-            1000
+          COOKIE_MAX_AGE_SEC
         );
 
         return sendJson(
@@ -2888,13 +2891,16 @@ http.createServer(
             user
           );
 
-          saveUsers(
-            users
-          );
+          saveUsers(users);
 
-          if (
-            firstUser
-          ) {
+          /* 新規ユーザーは必ず独立した所持データ領域を持つ。 */
+          const userData = loadUserData();
+          if (!userData[user.id]) {
+            userData[user.id] = {};
+            saveUserData(userData);
+          }
+
+          if (firstUser) {
             let cards =
               load();
 
@@ -3300,37 +3306,44 @@ http.createServer(
             data[uid] ||
             {};
 
-          data[uid][
-            parts[2]
-          ] =
+          data[uid][parts[2]] = data[uid][parts[2]] || {};
+          data[uid][parts[2]].no = normalizeCardNo(
+            cards.find((c) => c.id === parts[2])?.no || ''
+          );
+
+          if (typeof body.qr === 'string') {
             data[uid][
               parts[2]
-            ] || {};
-
-          const userCard = data[uid][parts[2]];
-
-          /*
-           * QRはカード本体(cards.json)には保存しない。
-           * 必ず「ログイン中のユーザーID → カードID」の
-           * user-data.json に保存する。
-           * これによりユーザーごとのQRを完全に分離する。
-           */
-          if (typeof body.qr === 'string') {
-            userCard.qr = body.qr.slice(0, 200);
+            ].qr =
+              body.qr.slice(
+                0,
+                200
+              );
           }
 
-          if (typeof body.owned === 'boolean') {
-            userCard.owned = body.owned;
+          if (
+            typeof body.owned ===
+            'boolean'
+          ) {
+            data[uid][
+              parts[2]
+            ].owned =
+              body.owned;
           }
 
-          if (typeof body.favorite === 'boolean') {
-            userCard.favorite = body.favorite;
+          if (
+            typeof body.favorite ===
+            'boolean'
+          ) {
+            data[uid][
+              parts[2]
+            ].favorite =
+              body.favorite;
           }
 
-          userCard.updatedAt = Date.now();
-
-          /* 書き込み後すぐに読み直せる形で永続化 */
-          saveUserData(data);
+          saveUserData(
+            data
+          );
 
           const updated =
             publicCardsForUser(
