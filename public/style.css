@@ -102,6 +102,11 @@ header h1{margin:0;font-size:1.2rem;letter-spacing:.04em;text-shadow:0 1px 2px r
 .series-regular.active{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 4px 12px rgba(98,174,234,.2)}
 .series-promotion.active{background:var(--purple);color:#fff;border-color:var(--purple);box-shadow:0 4px 12px rgba(156,122,214,.2)}
 
+/* レアリティ：選択中のボタンを色で分かるようにする */
+.rarity-all.active{background:#7f8791;color:#fff;border-color:#7f8791}
+.rarity-normal.active{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 4px 12px rgba(98,174,234,.2)}
+.rarity-premium.active{background:var(--purple);color:#fff;border-color:var(--purple);box-shadow:0 4px 12px rgba(156,122,214,.2)}
+
 /* タイプ */
 .type-all.active{background:#7f8791;color:#fff;border-color:#7f8791}
 .type-cute.active{background:var(--cute);color:#fff;border-color:var(--cute);box-shadow:0 4px 12px rgba(244,127,164,.2)}
