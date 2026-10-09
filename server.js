@@ -658,12 +658,6 @@ function publicCardsForUser(
       )
     ) {
       if (
-        uid === userId
-      ) {
-        continue;
-      }
-
-      if (
         bucket?.[c.id]?.owned
       ) {
         const name =
@@ -1858,6 +1852,7 @@ const SUPABASE_FILES = new Map([
 ]);
 let supabaseReady = false;
 let supabaseWriteQueue = Promise.resolve();
+let supabaseLastWriteError = null;
 const originalWriteFileSync = fs.writeFileSync.bind(fs);
 
 async function supabaseRequest(endpoint, options = {}) {
@@ -1895,6 +1890,16 @@ function writeLocalJson(file, value) {
   originalWriteFileSync(file, JSON.stringify(value, null, 2));
 }
 
+async function flushSupabaseWrites() {
+  if (!SUPABASE_ENABLED) return;
+  await supabaseWriteQueue;
+  if (supabaseLastWriteError) {
+    const error = supabaseLastWriteError;
+    supabaseLastWriteError = null;
+    throw error;
+  }
+}
+
 async function initializeSupabasePersistence() {
   if (!SUPABASE_ENABLED) {
     console.warn('[Supabase] URLまたはSecret keyが未設定です。JSONファイル保存で起動します（Render Freeでは永続性がありません）。');
@@ -1929,9 +1934,13 @@ async function initializeSupabasePersistence() {
       let value;
       try { value = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data)); }
       catch (error) { console.error('[Supabase] JSON parse for persistence failed:', error.message); return result; }
+      supabaseLastWriteError = null;
       supabaseWriteQueue = supabaseWriteQueue
         .then(() => writeSupabaseValue(key, value))
-        .catch(error => console.error(`[Supabase] ${key} の保存に失敗:`, error.message));
+        .catch(error => {
+          supabaseLastWriteError = error;
+          console.error(`[Supabase] ${key} の保存に失敗:`, error.message);
+        });
     }
     return result;
   };
@@ -3446,6 +3455,8 @@ const appServer = http.createServer(
           saveUserData(
             data
           );
+          // Supabaseへの保存完了を待ってから成功レスポンスを返す。
+          await flushSupabaseWrites();
 
           const updated =
             publicCardsForUser(

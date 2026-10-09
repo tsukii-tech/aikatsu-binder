@@ -166,7 +166,7 @@ header h1{margin:0;font-size:1.2rem;letter-spacing:.04em;text-shadow:0 1px 2px r
 .qr-line{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:6px;font-size:.59rem}
 .qr-code-text{color:#8d72bf;font-weight:900}.qr-empty{color:#aaa}
 .mini-btn{border:0;border-radius:7px;background:#9576c5;color:#fff;padding:4px 6px;font:700 .58rem inherit;cursor:pointer}
-.scan-btn{background:#65a9dc}.owners-box{margin-top:5px;color:#9b9199;font-size:.55rem;line-height:1.4;min-height:16px}.action-btn{width:100%;border:0;border-radius:9px;background:#9b7acb;color:#fff;padding:7px;font:800 .63rem inherit;cursor:pointer;margin-top:5px}
+.scan-btn{background:#65a9dc}.owners-box{display:block;margin-top:7px;padding:6px 8px;border-radius:8px;background:#f7f2fb;color:#59436b;font-size:.68rem;line-height:1.5;min-height:22px;overflow-wrap:anywhere}.action-btn{width:100%;border:0;border-radius:9px;background:#9b7acb;color:#fff;padding:7px;font:800 .63rem inherit;cursor:pointer;margin-top:5px}
 
 .pagination{display:flex;justify-content:center;align-items:center;gap:5px;margin:18px 0 2px}.pagination button{min-width:34px;height:34px;border:1px solid #e5dbe1;background:#fff;border-radius:10px;font:800 .72rem inherit;color:#776d76;cursor:pointer}.pagination button.active{background:#ed76a5;color:#fff;border-color:#ed76a5}.pagination button:disabled{opacity:.35;cursor:not-allowed}.pagination span{color:#aaa}
 
@@ -204,7 +204,7 @@ header h1{margin:0;font-size:1.2rem;letter-spacing:.04em;text-shadow:0 1px 2px r
   .favorite-btn{width:33px;height:32px}
   .ownership-btn{font-size:.58rem}
   .mini-btn{font-size:.54rem;padding:4px 5px}
-  .owners-box{font-size:.51rem}
+  .owners-box{font-size:.62rem;padding:5px 6px}
   .action-btn{font-size:.58rem}
 }
 
