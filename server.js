@@ -342,14 +342,11 @@ function makeLimiter(
 
 /* ===================== セッション ===================== */
 
-/*
- * ログイン期限は設けない。
- * セッションはサーバーが稼働している間、有効なままにする。
- * ブラウザ側のCookieも長期間保持する。
- */
-const SESSION_TTL = null;
-const USER_SESSION_TTL = null;
-const COOKIE_MAX_AGE_SEC = 2147483647;
+const SESSION_TTL =
+  12 * 60 * 60 * 1000;
+
+const USER_SESSION_TTL =
+  14 * 24 * 60 * 60 * 1000;
 
 const sessions = new Map();
 
@@ -369,7 +366,8 @@ const newSession = (
       role,
       userId:
         userId || null,
-      exp: null
+      exp:
+        Date.now() + ttl
     }
   );
 
@@ -394,7 +392,22 @@ const getSession = (
     return null;
   }
 
-  /* ログイン期限なし。expは互換用に残すが判定には使用しない。 */
+  if (
+    s.exp <
+    Date.now()
+  ) {
+    sessions.delete(sid);
+
+    return null;
+  }
+
+  s.exp =
+    Date.now() +
+    (
+      role === 'admin'
+        ? SESSION_TTL
+        : USER_SESSION_TTL
+    );
 
   return s;
 };
@@ -468,7 +481,7 @@ const setCookie = (
     'Set-Cookie',
     `${name}=${encodeURIComponent(
       value
-    )}; HttpOnly; Path=/; Max-Age=${maxAgeSec ?? COOKIE_MAX_AGE_SEC}; SameSite=Strict${secure}`
+    )}; HttpOnly; Path=/; Max-Age=${maxAgeSec}; SameSite=Strict${secure}`
   );
 };
 
@@ -503,9 +516,17 @@ const isPcUA = (
   );
 };
 
-/* ログイン回数制限は設けない。 */
-const adminLoginLimiter = () => false;
-const userLoginLimiter = () => false;
+const adminLoginLimiter =
+  makeLimiter(
+    10,
+    15 * 60 * 1000
+  );
+
+const userLoginLimiter =
+  makeLimiter(
+    10,
+    15 * 60 * 1000
+  );
 
 function requireAdmin(
   req,
@@ -601,56 +622,80 @@ function verifyUserPassword(
 /*
  * 一般ユーザー用カード一覧。
  */
-function findUserCardData(bucket, card) {
-  if (!bucket || typeof bucket !== 'object') return {};
+function publicCardsForUser(
+  cards,
+  userId
+) {
+  const allData =
+    loadUserData();
 
-  /* 現行ID → カード番号 → 保存済みno の順で探す。 */
-  if (bucket[card.id]) return bucket[card.id];
+  const users =
+    loadUsers();
 
-  const no = normalizeCardNo(card.no);
-  if (no && bucket[no]) return bucket[no];
+  const nameById =
+    new Map(
+      users.map(
+        (u) => [
+          u.id,
+          u.username
+        ]
+      )
+    );
 
-  for (const value of Object.values(bucket)) {
-    if (value && typeof value === 'object' && normalizeCardNo(value.no) === no) {
-      return value;
-    }
-  }
-
-  return {};
-}
-
-function publicCardsForUser(cards, userId) {
-  const allData = loadUserData();
-  const users = loadUsers();
-  const nameById = new Map(users.map((u) => [u.id, u.username]));
-  const mine = allData[userId] || {};
+  const mine =
+    allData[userId] || {};
 
   return cards.map((c) => {
-    const mineData = findUserCardData(mine, c);
     const owners = [];
-    const ownerIds = [];
+    const ownerSet = new Set();
 
-    for (const [uid, bucket] of Object.entries(allData)) {
-      const data = findUserCardData(bucket, c);
-      if (data?.owned) {
-        const name = nameById.get(uid);
-        if (name) {
+    for (
+      const [
+        uid,
+        bucket
+      ] of Object.entries(
+        allData
+      )
+    ) {
+      if (
+        uid === userId
+      ) {
+        continue;
+      }
+
+      if (
+        bucket?.[c.id]?.owned
+      ) {
+        const name =
+          nameById.get(uid);
+
+        if (name && !ownerSet.has(name)) {
+          ownerSet.add(name);
           owners.push(name);
-          ownerIds.push(uid);
         }
       }
     }
 
-    owners.sort((a, b) => a.localeCompare(b, 'ja'));
+    owners.sort(
+      (a, b) =>
+        a.localeCompare(
+          b,
+          'ja'
+        )
+    );
 
     return withSeries({
       ...c,
-      /* 所持・お気に入り・QRは必ずログインユーザーのデータから決める。 */
-      owned: !!mineData.owned,
-      favorite: !!mineData.favorite,
-      qr: String(mineData.qr || ''),
-      owners,
-      ownerIds
+      owned:
+        !!mine[c.id]?.owned,
+      qr:
+        String(
+          mine[c.id]?.qr ||
+            ''
+        ),
+      favorite:
+        !!mine[c.id]?.favorite,
+      owners
     });
   });
 }
@@ -1485,48 +1530,6 @@ function tidyAndMigrate(
   return result;
 }
 
-/*
- * カードIDがGitHub更新等で変わっても、カード番号(no)をキーにして
- * ユーザーごとの所持・お気に入り・QRを引き継げるようにする。
- */
-function migrateUserDataToCardNumbers(cards) {
-  const data = loadUserData();
-  let changed = false;
-
-  for (const userId of Object.keys(data)) {
-    const bucket = data[userId];
-    if (!bucket || typeof bucket !== 'object') continue;
-
-    for (const card of cards) {
-      const no = normalizeCardNo(card.no);
-      if (!no) continue;
-
-      let found = bucket[card.id];
-      if (!found) {
-        found = bucket[no];
-      }
-      if (!found) {
-        for (const value of Object.values(bucket)) {
-          if (value && typeof value === 'object' && normalizeCardNo(value.no) === no) {
-            found = value;
-            break;
-          }
-        }
-      }
-
-      if (!found) continue;
-
-      const next = { ...found, no };
-      if (JSON.stringify(bucket[no]) !== JSON.stringify(next)) {
-        bucket[no] = next;
-        changed = true;
-      }
-    }
-  }
-
-  if (changed) saveUserData(data);
-}
-
 /* ===================== 管理者本体 ===================== */
 
 /*
@@ -1839,12 +1842,106 @@ const imgMime = {
     'image/gif'
 };
 
-/* 起動時にユーザーデータをカード番号基準へ移行。 */
-try { migrateUserDataToCardNumbers(load()); } catch (e) { console.error('[migrate user-data]', e.message); }
+/* ===================== SUPABASE PERSISTENCE =====================
+ * Render Free の一時ファイルシステムに依存しないよう、JSONデータをSupabaseに保存します。
+ * 必須環境変数: SUPABASE_URL, SUPABASE_SECRET_KEY
+ * Supabase table: public.app_storage(key text primary key, value jsonb, updated_at timestamptz)
+ */
+const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || '';
+const SUPABASE_ENABLED = !!(SUPABASE_URL && SUPABASE_SECRET_KEY);
+const SUPABASE_FILES = new Map([
+  [path.resolve(DATA), 'cards'],
+  [path.resolve(ADMIN_FILE), 'admin'],
+  [path.resolve(USERS_FILE), 'users'],
+  [path.resolve(USER_DATA_FILE), 'user-data']
+]);
+let supabaseReady = false;
+let supabaseWriteQueue = Promise.resolve();
+const originalWriteFileSync = fs.writeFileSync.bind(fs);
+
+async function supabaseRequest(endpoint, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_SECRET_KEY,
+      Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Supabase ${response.status}: ${detail.slice(0, 500)}`);
+  }
+  if (response.status === 204) return null;
+  return response.json().catch(() => null);
+}
+
+async function readSupabaseValue(key) {
+  const rows = await supabaseRequest(`app_storage?key=eq.${encodeURIComponent(key)}&select=value`);
+  return Array.isArray(rows) && rows.length ? rows[0].value : undefined;
+}
+
+async function writeSupabaseValue(key, value) {
+  await supabaseRequest('app_storage?on_conflict=key', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
+  });
+}
+
+function writeLocalJson(file, value) {
+  originalWriteFileSync(file, JSON.stringify(value, null, 2));
+}
+
+async function initializeSupabasePersistence() {
+  if (!SUPABASE_ENABLED) {
+    console.warn('[Supabase] URLまたはSecret keyが未設定です。JSONファイル保存で起動します（Render Freeでは永続性がありません）。');
+    return;
+  }
+
+  // First fetch every remote key before writing anything, so startup defaults never overwrite existing cloud data.
+  const entries = [...SUPABASE_FILES.entries()];
+  const remoteValues = new Map();
+  for (const [file, key] of entries) remoteValues.set(file, await readSupabaseValue(key));
+
+  for (const [file, key] of entries) {
+    const remote = remoteValues.get(file);
+    if (remote !== undefined && remote !== null) {
+      writeLocalJson(file, remote);
+      console.log(`[Supabase] ${key} をクラウドから読み込みました`);
+    } else {
+      // Only seed a cloud key when it does not yet exist. This is the initial migration path.
+      let localValue;
+      try { localValue = JSON.parse(fs.readFileSync(file, 'utf8')); }
+      catch { localValue = key === 'cards' || key === 'users' ? [] : {}; }
+      await writeSupabaseValue(key, localValue);
+      console.log(`[Supabase] ${key} を初回登録しました`);
+    }
+  }
+
+  // Keep the local JSON mirror for compatibility with existing synchronous routes, and queue every future write to cloud.
+  fs.writeFileSync = function(file, data, ...args) {
+    const result = originalWriteFileSync(file, data, ...args);
+    const key = SUPABASE_FILES.get(path.resolve(String(file)));
+    if (supabaseReady && key) {
+      let value;
+      try { value = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data)); }
+      catch (error) { console.error('[Supabase] JSON parse for persistence failed:', error.message); return result; }
+      supabaseWriteQueue = supabaseWriteQueue
+        .then(() => writeSupabaseValue(key, value))
+        .catch(error => console.error(`[Supabase] ${key} の保存に失敗:`, error.message));
+    }
+    return result;
+  };
+  supabaseReady = true;
+  console.log('[Supabase] 永続保存が有効です');
+}
 
 /* ===================== HTTP SERVER ===================== */
 
-http.createServer(
+const appServer = http.createServer(
   async (
     req,
     res
@@ -2072,7 +2169,8 @@ http.createServer(
             u.id,
             USER_SESSION_TTL
           ),
-          COOKIE_MAX_AGE_SEC
+          USER_SESSION_TTL /
+            1000
         );
 
         return sendJson(
@@ -2285,7 +2383,8 @@ http.createServer(
             null,
             SESSION_TTL
           ),
-          COOKIE_MAX_AGE_SEC
+          SESSION_TTL /
+            1000
         );
 
         return sendJson(
@@ -2396,7 +2495,8 @@ http.createServer(
             null,
             SESSION_TTL
           ),
-          COOKIE_MAX_AGE_SEC
+          SESSION_TTL /
+            1000
         );
 
         return sendJson(
@@ -2891,16 +2991,13 @@ http.createServer(
             user
           );
 
-          saveUsers(users);
+          saveUsers(
+            users
+          );
 
-          /* 新規ユーザーは必ず独立した所持データ領域を持つ。 */
-          const userData = loadUserData();
-          if (!userData[user.id]) {
-            userData[user.id] = {};
-            saveUserData(userData);
-          }
-
-          if (firstUser) {
+          if (
+            firstUser
+          ) {
             let cards =
               load();
 
@@ -3306,12 +3403,17 @@ http.createServer(
             data[uid] ||
             {};
 
-          data[uid][parts[2]] = data[uid][parts[2]] || {};
-          data[uid][parts[2]].no = normalizeCardNo(
-            cards.find((c) => c.id === parts[2])?.no || ''
-          );
+          data[uid][
+            parts[2]
+          ] =
+            data[uid][
+              parts[2]
+            ] || {};
 
-          if (typeof body.qr === 'string') {
+          if (
+            typeof body.qr ===
+            'string'
+          ) {
             data[uid][
               parts[2]
             ].qr =
@@ -3889,10 +3991,15 @@ http.createServer(
       );
     }
   }
-).listen(
-  PORT,
-  () =>
-    console.log(
-      `✨ アイカツ！バインダー起動: http://localhost:${PORT}（管理サイトは /admin ）`
-    )
 );
+
+initializeSupabasePersistence()
+  .then(() => {
+    appServer.listen(PORT, () =>
+      console.log(`✨ アイカツ！バインダー起動: http://localhost:${PORT}（管理サイトは /admin ）`)
+    );
+  })
+  .catch((error) => {
+    console.error('[Supabase] 初期化に失敗したため起動を中止しました:', error.message);
+    process.exit(1);
+  });

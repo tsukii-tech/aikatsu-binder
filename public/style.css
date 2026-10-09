@@ -122,11 +122,6 @@ header h1{margin:0;font-size:1.2rem;letter-spacing:.04em;text-shadow:0 1px 2px r
 .owned-filter.active{background:#62b783;color:#fff;border-color:#62b783;box-shadow:0 4px 12px rgba(98,183,131,.2)}
 .favorite-filter.active{background:#ef6b9f;color:#fff;border-color:#ef6b9f;box-shadow:0 4px 12px rgba(239,107,159,.2)}
 .filter-status{margin-top:8px;text-align:right;color:#a0939c;font-size:.65rem}
-.rarity-filter.active,.rarity-normal.active{background:#6f9fe8;color:#fff;border-color:#6f9fe8;box-shadow:0 4px 12px rgba(111,159,232,.22)}
-.rarity-premium.active{background:#9b72cf;color:#fff;border-color:#9b72cf;box-shadow:0 4px 12px rgba(155,114,207,.22)}
-.owner-chip.active,.owner-all.active{background:#8f7ab8;color:#fff;border-color:#8f7ab8;box-shadow:0 4px 12px rgba(143,122,184,.22)}
-.owner-section .filter-group{max-height:180px;overflow-y:auto;padding-right:3px}
-
 
 /* ---------- バインダー ---------- */
 .binder-wrapper{

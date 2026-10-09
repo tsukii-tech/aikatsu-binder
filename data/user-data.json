@@ -186,31 +186,31 @@
       "no": "E1-07_R"
     },
     "E1-01_PR": {
-      "owned": true,
+      "owned": false,
       "no": "E1-01_PR"
     },
     "E1-02_PR": {
-      "owned": true,
+      "owned": false,
       "no": "E1-02_PR"
     },
     "E1-03_PR": {
-      "owned": true,
+      "owned": false,
       "no": "E1-03_PR"
     },
     "E1-04_PR": {
-      "owned": true,
+      "owned": false,
       "no": "E1-04_PR"
     },
     "E1-05_R": {
-      "owned": true,
+      "owned": false,
       "no": "E1-05_R"
     },
     "E1-06_R": {
-      "owned": true,
+      "owned": false,
       "no": "E1-06_R"
     },
     "E1-07_R": {
-      "owned": true,
+      "owned": false,
       "no": "E1-07_R"
     },
     "E1-08_R": {
@@ -222,23 +222,23 @@
       "no": "E1-09_R"
     },
     "E1-10_R": {
-      "owned": true,
+      "owned": false,
       "no": "E1-10_R"
     },
     "E1-13_R": {
-      "owned": true,
+      "owned": false,
       "no": "E1-13_R"
     },
     "E1-33_PR": {
-      "owned": true,
+      "owned": false,
       "no": "E1-33_PR"
     },
     "E1-34_PR": {
-      "owned": true,
+      "owned": false,
       "no": "E1-34_PR"
     },
     "E1-51_PR": {
-      "owned": true,
+      "owned": false,
       "no": "E1-51_PR"
     },
     "1790583261786-89": {
@@ -246,6 +246,14 @@
       "owned": false
     },
     "1790583261786-90": {
+      "no": "EP-038_N",
+      "owned": false
+    },
+    "EP-037_N": {
+      "no": "EP-037_N",
+      "owned": false
+    },
+    "EP-038_N": {
       "no": "EP-038_N",
       "owned": false
     }
