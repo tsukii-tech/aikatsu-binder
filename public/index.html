@@ -3,15 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- アイカツ！バインダー アイコン -->
+<link rel="icon" type="image/png" sizes="1254x1254" href="/icon.png?v=20261010">
+<link rel="shortcut icon" type="image/png" href="/icon.png?v=20261010">
+<link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png?v=20261010">
+<link rel="manifest" href="/manifest.json?v=20261010">
+<meta name="theme-color" content="#f5b6e6">
 <title>アイカツ！バインダー</title>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<style>[hidden]{display:none!important}.user-bar #passkey-register-btn{margin-right:.35rem}</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <header>
   <h1>✨ アイカツ！バインダー ✨</h1>
-  <div class="user-bar"><span id="user-name-display"></span><button id="user-logout-btn">ログアウト</button></div>
+  <div class="user-bar"><span id="user-name-display"></span><button id="passkey-register-btn" type="button" hidden>パスキーを登録</button><button id="user-logout-btn">ログアウト</button></div>
 </header>
 
 <main class="container">
@@ -108,6 +115,7 @@
       <label>ユーザー名<input id="user-login-name" required autocomplete="username"></label>
       <label>パスワード<input id="user-login-password" type="password" required autocomplete="current-password"></label>
       <button class="btn-submit" type="submit">ログイン</button>
+      <button class="btn-submit neutral" id="passkey-login-btn" type="button">パスキーでログイン</button>
     </form>
   </div>
 </div>
@@ -142,6 +150,12 @@ const PER_PAGE=10,flipped=new Set(),savingCards=new Set();
 let scannerStream=null,scanTimer=null;
 
 async function api(path,method='GET',body){const isGet=method==='GET';const url='/api/'+path+(isGet?((path.includes('?')?'&':'?')+'_t='+Date.now()):'');const r=await fetch(url,{method,cache:'no-store',headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},body:body===undefined?undefined:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'エラーが発生しました');return d;}
+function b64urlToBuffer(value){const pad='='.repeat((4-value.length%4)%4);const s=(value+pad).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(s);return Uint8Array.from(raw,c=>c.charCodeAt(0));}
+function bufferToB64url(value){const bytes=new Uint8Array(value);let s='';bytes.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function decodeCreationOptions(o){return {...o,challenge:b64urlToBuffer(o.challenge),user:{...o.user,id:b64urlToBuffer(o.user.id)},excludeCredentials:(o.excludeCredentials||[]).map(c=>({...c,id:b64urlToBuffer(c.id)}))};}
+function decodeRequestOptions(o){return {...o,challenge:b64urlToBuffer(o.challenge),allowCredentials:(o.allowCredentials||[]).map(c=>({...c,id:b64urlToBuffer(c.id)}))};}
+function credentialToJSON(c){return {id:c.id,rawId:bufferToB64url(c.rawId),type:c.type,authenticatorAttachment:c.authenticatorAttachment,response:{clientDataJSON:bufferToB64url(c.response.clientDataJSON),attestationObject:c.response.attestationObject?bufferToB64url(c.response.attestationObject):undefined,authenticatorData:c.response.authenticatorData?bufferToB64url(c.response.authenticatorData):undefined,signature:c.response.signature?bufferToB64url(c.response.signature):undefined,userHandle:c.response.userHandle?bufferToB64url(c.response.userHandle):undefined,transports:c.response.getTransports?c.response.getTransports():[]}};}
+
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3500);}
 function ph(t,c){return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="${PH_COL[t]||'#eee'}"/><text x="150" y="185" font-size="110" text-anchor="middle">${PH_ICO[c]||'🎴'}</text></svg>`);}
 function imgAttrs(c,url){const raw=/^https?:/.test(url||'')?url:'';return `data-type="${esc(c.type)}" data-cat="${esc(c.category)}" data-raw="${esc(raw)}" referrerpolicy="no-referrer" src="${esc(url)||ph(c.type,c.category)}"`}
@@ -214,12 +228,14 @@ $('#rarity-filters').onclick=e=>{const b=e.target.closest('[data-rarity]');if(!b
 $('#owner-filters').onclick=e=>{const b=e.target.closest('[data-owner]');if(!b)return;selectedOwner=b.dataset.owner;currentPage=1;$$('#owner-filters [data-owner]').forEach(x=>x.classList.toggle('active',x===b));renderCards()};
 $('#status-filters').onclick=e=>{const o=e.target.closest('[data-owned]');if(o){ownedOnly=!ownedOnly;o.classList.toggle('active',ownedOnly);$('#status-filters [data-status=\"all\"]')?.classList.toggle('active',!ownedOnly&&!favoriteOnly);currentPage=1;renderCards();return}const f=e.target.closest('[data-favorite]');if(f){favoriteOnly=!favoriteOnly;f.classList.toggle('active',favoriteOnly);$('#status-filters [data-status=\"all\"]')?.classList.toggle('active',!ownedOnly&&!favoriteOnly);currentPage=1;renderCards();return}const all=e.target.closest('[data-status=\"all\"]');if(all){ownedOnly=false;favoriteOnly=false;$$('#status-filters [data-owned], #status-filters [data-favorite]').forEach(x=>x.classList.remove('active'));all.classList.add('active');currentPage=1;renderCards()}};
 $('#qr-close').onclick=()=>$('#qr-modal').classList.remove('active');$('#qr-modal').onclick=e=>{if(e.target.id==='qr-modal')$('#qr-modal').classList.remove('active')};$('#qr-scan-close').onclick=closeScanner;$('#qr-scan-modal').onclick=e=>{if(e.target.id==='qr-scan-modal')closeScanner()};
-async function refreshUser(){try{user=await api('auth/status')}catch{user={authed:false,username:''}}$('#user-login-modal').classList.toggle('active',!user.authed);$('#user-name-display').textContent=user.authed?`ログイン中：${user.username}`:''}
+async function refreshUser(){try{user=await api('auth/status')}catch{user={authed:false,username:''}}$('#user-login-modal').classList.toggle('active',!user.authed);$('#user-name-display').textContent=user.authed?`ログイン中：${user.username}`:'';$('#passkey-register-btn').hidden=!user.authed}
 let refreshingCards=false;
 async function refreshCardsSilently(){if(!user.authed||document.hidden||refreshingCards||savingCards.size)return;refreshingCards=true;try{const fresh=await api('cards');cards=fresh;renderOwnerFilters();renderCards()}catch{}finally{refreshingCards=false}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshCardsSilently()});
 setInterval(refreshCardsSilently,10000);
 $('#user-login-form').onsubmit=async e=>{e.preventDefault();try{const r=await api('auth/login','POST',{username:$('#user-login-name').value.trim(),password:$('#user-login-password').value});user={authed:true,username:r.username};$('#user-login-password').value='';$('#user-login-modal').classList.remove('active');cards=await api('cards');renderOwnerFilters();currentPage=1;renderCards();toast('ログインしました')}catch(err){toast(err.message)}};
+$('#passkey-register-btn').onclick=async()=>{try{if(!window.PublicKeyCredential||!navigator.credentials)throw new Error('このブラウザはパスキーに対応していません');const options=await api('passkey/register/options','POST',{});const credential=await navigator.credentials.create({publicKey:decodeCreationOptions(options)});if(!credential)throw new Error('パスキー登録がキャンセルされました');const result=await api('passkey/register/verify','POST',credentialToJSON(credential));toast(result.message||'パスキーを登録しました')}catch(err){toast(err.message||'パスキーを登録できませんでした')}};
+$('#passkey-login-btn').onclick=async()=>{try{if(!window.PublicKeyCredential||!navigator.credentials)throw new Error('このブラウザはパスキーに対応していません');const username=$('#user-login-name').value.trim();if(!username)throw new Error('先にユーザー名を入力してください');const options=await api('passkey/login/options','POST',{username});const credential=await navigator.credentials.get({publicKey:decodeRequestOptions(options)});if(!credential)throw new Error('パスキー認証がキャンセルされました');const result=await api('passkey/login/verify','POST',{username,credential:credentialToJSON(credential)});user={authed:true,username:result.username};$('#user-login-modal').classList.remove('active');await refreshUser();cards=await api('cards');renderOwnerFilters();currentPage=1;renderCards();toast('パスキーでログインしました')}catch(err){toast(err.message||'パスキーでログインできませんでした')}};
 $('#user-logout-btn').onclick=async()=>{try{await api('auth/logout','POST')}catch{}user={authed:false,username:''};cards=[];renderCards();$('#user-login-modal').classList.add('active');toast('ログアウトしました')};
 (async()=>{await refreshUser();if(user.authed){try{cards=await api('cards');renderOwnerFilters();renderCards()}catch{toast('サーバーに接続できません')}}})();
 </script>

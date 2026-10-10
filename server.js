@@ -3,6 +3,10 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const {
+  generateRegistrationOptions, verifyRegistrationResponse,
+  generateAuthenticationOptions, verifyAuthenticationResponse
+} = require('@simplewebauthn/server');
 
 const PORT = process.env.PORT || 3000;
 const PUB = path.join(__dirname, 'public');
@@ -11,6 +15,7 @@ const DATA = path.join(DATA_DIR, 'cards.json');
 const ADMIN_FILE = path.join(DATA_DIR, 'admin.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const USER_DATA_FILE = path.join(DATA_DIR, 'user-data.json');
+const PASSKEYS_FILE = path.join(DATA_DIR, 'passkeys.json');
 const CACHE = path.join(DATA_DIR, 'imgcache');
 
 const TYPES = ['cute', 'cool', 'sexy', 'pop'];
@@ -91,6 +96,10 @@ if (!fs.existsSync(USERS_FILE)) {
 
 if (!fs.existsSync(USER_DATA_FILE)) {
   fs.writeFileSync(USER_DATA_FILE, JSON.stringify({}, null, 2));
+}
+
+if (!fs.existsSync(PASSKEYS_FILE)) {
+  fs.writeFileSync(PASSKEYS_FILE, JSON.stringify({}, null, 2));
 }
 
 const load = () => {
@@ -1858,7 +1867,8 @@ const SUPABASE_FILES = new Map([
   [path.resolve(DATA), 'cards'],
   [path.resolve(ADMIN_FILE), 'admin'],
   [path.resolve(USERS_FILE), 'users'],
-  [path.resolve(USER_DATA_FILE), 'user-data']
+  [path.resolve(USER_DATA_FILE), 'user-data'],
+  [path.resolve(PASSKEYS_FILE), 'passkeys']
 ]);
 let supabaseReady = false;
 let supabaseWriteQueue = Promise.resolve();
@@ -1957,6 +1967,28 @@ async function initializeSupabasePersistence() {
   supabaseReady = true;
   console.log('[Supabase] 永続保存が有効です');
 }
+
+/* ===================== PASSKEY / WEBAUTHN ===================== */
+const pendingPasskeyChallenges = new Map();
+const loadPasskeys = () => {
+  try { return JSON.parse(fs.readFileSync(PASSKEYS_FILE, 'utf8')) || {}; }
+  catch { return {}; }
+};
+const savePasskeys = (value) => fs.writeFileSync(PASSKEYS_FILE, JSON.stringify(value, null, 2));
+const requestOrigin = (req) => {
+  const origin = String(req.headers.origin || '').replace(/\/$/, '');
+  if (origin) return origin;
+  const proto = (req.headers['x-forwarded-proto'] || 'https').toString().split(',')[0].trim();
+  return `${proto}://${req.headers.host}`;
+};
+const requestRpId = (req) => new URL(requestOrigin(req)).hostname;
+const passkeyUserId = (userId) => Buffer.from(String(userId)).toString('base64url');
+const getPasskeyCredential = (item) => ({
+  id: item.id,
+  publicKey: Buffer.from(item.publicKey, 'base64url'),
+  counter: Number(item.counter || 0),
+  transports: item.transports || []
+});
 
 /* ===================== HTTP SERVER ===================== */
 
@@ -2127,6 +2159,99 @@ const appServer = http.createServer(
               ''
           }
         );
+      }
+
+      /* ---------- パスキー登録・認証 ---------- */
+      if (url.pathname === '/api/passkey/register/options' && req.method === 'POST') {
+        const userId = getUserId(req);
+        if (!userId) return sendJson(res, 401, { error: 'パスキー登録には先にユーザー名・パスワードでログインしてください' });
+        const user = loadUsers().find(x => x.id === userId);
+        if (!user) return sendJson(res, 401, { error: 'ユーザーが見つかりません' });
+        const store = loadPasskeys();
+        const existing = store[userId] || [];
+        const origin = requestOrigin(req);
+        const rpID = requestRpId(req);
+        const options = await generateRegistrationOptions({
+          rpName: 'アイカツ！バインダー', rpID,
+          userID: Buffer.from(String(userId)), userName: String(user.username),
+          userDisplayName: String(user.username),
+          attestationType: 'none',
+          excludeCredentials: existing.map(x => ({ id: x.id, transports: x.transports || [] })),
+          authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
+          timeout: 60000
+        });
+        pendingPasskeyChallenges.set(`reg:${userId}`, { challenge: options.challenge, origin, rpID, createdAt: Date.now() });
+        return sendJson(res, 200, options);
+      }
+
+      if (url.pathname === '/api/passkey/register/verify' && req.method === 'POST') {
+        const userId = getUserId(req);
+        if (!userId) return sendJson(res, 401, { error: 'ログイン状態を確認できません。再ログインしてください' });
+        const pending = pendingPasskeyChallenges.get(`reg:${userId}`);
+        if (!pending || Date.now() - pending.createdAt > 5 * 60 * 1000) return sendJson(res, 400, { error: '登録の有効期限が切れました。もう一度お試しください' });
+        const body = await readBody(req);
+        const verification = await verifyRegistrationResponse({
+          response: body, expectedChallenge: pending.challenge,
+          expectedOrigin: pending.origin, expectedRPID: pending.rpID,
+          requireUserVerification: false
+        });
+        pendingPasskeyChallenges.delete(`reg:${userId}`);
+        if (!verification.verified || !verification.registrationInfo) return sendJson(res, 400, { error: 'パスキーを確認できませんでした' });
+        const info = verification.registrationInfo;
+        const credential = info.credential || {};
+        const id = credential.id || body.id;
+        const publicKey = credential.publicKey || info.credentialPublicKey;
+        const counter = credential.counter ?? info.counter ?? 0;
+        if (!id || !publicKey) return sendJson(res, 400, { error: 'パスキー情報を取得できませんでした' });
+        const store = loadPasskeys();
+        const list = store[userId] || [];
+        if (!list.some(x => x.id === id)) list.push({ id, publicKey: Buffer.from(publicKey).toString('base64url'), counter, transports: body.response?.transports || [], createdAt: new Date().toISOString() });
+        store[userId] = list;
+        savePasskeys(store);
+        await flushSupabaseWrites();
+        return sendJson(res, 200, { ok: true, message: 'この端末のパスキーを登録しました' });
+      }
+
+      if (url.pathname === '/api/passkey/login/options' && req.method === 'POST') {
+        const { username } = await readBody(req);
+        const user = findUser(username);
+        if (!user) return sendJson(res, 401, { error: 'ユーザー名を確認してください' });
+        const list = loadPasskeys()[user.id] || [];
+        if (!list.length) return sendJson(res, 404, { error: 'このユーザーにはパスキーが登録されていません。パスワードでログインして登録してください' });
+        const origin = requestOrigin(req);
+        const rpID = requestRpId(req);
+        const options = await generateAuthenticationOptions({
+          rpID, allowCredentials: list.map(x => ({ id: x.id, transports: x.transports || [] })),
+          userVerification: 'preferred', timeout: 60000
+        });
+        pendingPasskeyChallenges.set(`auth:${user.id}`, { challenge: options.challenge, origin, rpID, createdAt: Date.now() });
+        return sendJson(res, 200, options);
+      }
+
+      if (url.pathname === '/api/passkey/login/verify' && req.method === 'POST') {
+        const { username, credential } = await readBody(req);
+        const user = findUser(username);
+        if (!user) return sendJson(res, 401, { error: 'ユーザー名を確認してください' });
+        const pending = pendingPasskeyChallenges.get(`auth:${user.id}`);
+        if (!pending || Date.now() - pending.createdAt > 5 * 60 * 1000) return sendJson(res, 400, { error: '認証の有効期限が切れました。もう一度お試しください' });
+        const store = loadPasskeys();
+        const list = store[user.id] || [];
+        const saved = list.find(x => x.id === credential?.id);
+        if (!saved) return sendJson(res, 401, { error: 'このパスキーは登録されていません' });
+        const verification = await verifyAuthenticationResponse({
+          response: credential, expectedChallenge: pending.challenge,
+          expectedOrigin: pending.origin, expectedRPID: pending.rpID,
+          credential: getPasskeyCredential(saved), requireUserVerification: false
+        });
+        pendingPasskeyChallenges.delete(`auth:${user.id}`);
+        if (!verification.verified) return sendJson(res, 401, { error: 'パスキー認証に失敗しました' });
+        const newCounter = verification.authenticationInfo.newCounter;
+        saved.counter = newCounter;
+        store[user.id] = list;
+        savePasskeys(store);
+        await flushSupabaseWrites();
+        setCookie(res, 'aikatsu_user_sid', newSession('user', user.id, USER_SESSION_TTL), USER_SESSION_TTL / 1000);
+        return sendJson(res, 200, { ok: true, username: user.username });
       }
 
       if (
