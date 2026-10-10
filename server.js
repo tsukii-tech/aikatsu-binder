@@ -622,6 +622,17 @@ function verifyUserPassword(
 /*
  * 一般ユーザー用カード一覧。
  */
+function findUserCardEntry(bucket, card) {
+  if (!bucket || !card) return {};
+  if (bucket[card.id] && typeof bucket[card.id] === 'object') return bucket[card.id];
+  const targetNo = normalizeCardNo(card.no || '');
+  if (!targetNo) return {};
+  for (const entry of Object.values(bucket)) {
+    if (entry && typeof entry === 'object' && normalizeCardNo(entry.no || '') === targetNo) return entry;
+  }
+  return {};
+}
+
 function publicCardsForUser(
   cards,
   userId
@@ -658,7 +669,7 @@ function publicCardsForUser(
       )
     ) {
       if (
-        bucket?.[c.id]?.owned
+        findUserCardEntry(bucket, c).owned
       ) {
         const name =
           nameById.get(uid);
@@ -681,14 +692,13 @@ function publicCardsForUser(
     return withSeries({
       ...c,
       owned:
-        !!mine[c.id]?.owned,
+        !!findUserCardEntry(mine, c).owned,
       qr:
         String(
-          mine[c.id]?.qr ||
-            ''
+          findUserCardEntry(mine, c).qr || ''
         ),
       favorite:
-        !!mine[c.id]?.favorite,
+        !!findUserCardEntry(mine, c).favorite,
       owners
     });
   });
@@ -3412,12 +3422,13 @@ const appServer = http.createServer(
             data[uid] ||
             {};
 
-          data[uid][
-            parts[2]
-          ] =
-            data[uid][
-              parts[2]
-            ] || {};
+          const currentCard = cards.find((c) => c.id === parts[2]);
+          const existingEntry = findUserCardEntry(data[uid], currentCard);
+          data[uid][parts[2]] = {
+            ...existingEntry,
+            ...(data[uid][parts[2]] || {}),
+            no: currentCard?.no || existingEntry.no || ''
+          };
 
           if (
             typeof body.qr ===
@@ -3496,7 +3507,7 @@ const appServer = http.createServer(
             const bucket = userData[u.id] || {};
             ownership[u.id] = {};
             for (const card of cards) {
-              const entry = bucket[card.id] || Object.values(bucket).find((v) => v && v.no && String(v.no) === String(card.no)) || {};
+              const entry = findUserCardEntry(bucket, card);
               ownership[u.id][card.id] = !!entry.owned;
             }
           }
@@ -3518,9 +3529,14 @@ const appServer = http.createServer(
           }
           const userData = loadUserData();
           userData[userId] = userData[userId] || {};
-          userData[userId][cardId] = userData[userId][cardId] || {};
-          userData[userId][cardId].no = cards.find((c) => c.id === cardId).no || '';
-          userData[userId][cardId].owned = body.owned;
+          const targetCard = cards.find((c) => c.id === cardId);
+          const existingEntry = findUserCardEntry(userData[userId], targetCard);
+          userData[userId][cardId] = {
+            ...existingEntry,
+            ...(userData[userId][cardId] || {}),
+            no: targetCard.no || existingEntry.no || '',
+            owned: body.owned
+          };
           saveUserData(userData);
           await flushSupabaseWrites();
           return sendJson(res, 200, { ok: true, userId, cardId, owned: body.owned });
@@ -3550,6 +3566,7 @@ const appServer = http.createServer(
           save(
             cards
           );
+          await flushSupabaseWrites();
 
           return sendJson(
             res,
@@ -3611,6 +3628,7 @@ const appServer = http.createServer(
           save(
             cards
           );
+          await flushSupabaseWrites();
 
           return sendJson(
             res,
@@ -3640,6 +3658,7 @@ const appServer = http.createServer(
                 deletedId
             )
           );
+          await flushSupabaseWrites();
 
           const userData =
             loadUserData();
