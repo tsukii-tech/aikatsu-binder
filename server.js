@@ -3,10 +3,6 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const {
-  generateRegistrationOptions, verifyRegistrationResponse,
-  generateAuthenticationOptions, verifyAuthenticationResponse
-} = require('@simplewebauthn/server');
 
 const PORT = process.env.PORT || 3000;
 const PUB = path.join(__dirname, 'public');
@@ -15,7 +11,6 @@ const DATA = path.join(DATA_DIR, 'cards.json');
 const ADMIN_FILE = path.join(DATA_DIR, 'admin.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const USER_DATA_FILE = path.join(DATA_DIR, 'user-data.json');
-const PASSKEYS_FILE = path.join(DATA_DIR, 'passkeys.json');
 const CACHE = path.join(DATA_DIR, 'imgcache');
 
 const TYPES = ['cute', 'cool', 'sexy', 'pop'];
@@ -96,10 +91,6 @@ if (!fs.existsSync(USERS_FILE)) {
 
 if (!fs.existsSync(USER_DATA_FILE)) {
   fs.writeFileSync(USER_DATA_FILE, JSON.stringify({}, null, 2));
-}
-
-if (!fs.existsSync(PASSKEYS_FILE)) {
-  fs.writeFileSync(PASSKEYS_FILE, JSON.stringify({}, null, 2));
 }
 
 const load = () => {
@@ -631,17 +622,6 @@ function verifyUserPassword(
 /*
  * 一般ユーザー用カード一覧。
  */
-function findUserCardEntry(bucket, card) {
-  if (!bucket || !card) return {};
-  if (bucket[card.id] && typeof bucket[card.id] === 'object') return bucket[card.id];
-  const targetNo = normalizeCardNo(card.no || '');
-  if (!targetNo) return {};
-  for (const entry of Object.values(bucket)) {
-    if (entry && typeof entry === 'object' && normalizeCardNo(entry.no || '') === targetNo) return entry;
-  }
-  return {};
-}
-
 function publicCardsForUser(
   cards,
   userId
@@ -678,7 +658,7 @@ function publicCardsForUser(
       )
     ) {
       if (
-        findUserCardEntry(bucket, c).owned
+        bucket?.[c.id]?.owned
       ) {
         const name =
           nameById.get(uid);
@@ -701,13 +681,14 @@ function publicCardsForUser(
     return withSeries({
       ...c,
       owned:
-        !!findUserCardEntry(mine, c).owned,
+        !!mine[c.id]?.owned,
       qr:
         String(
-          findUserCardEntry(mine, c).qr || ''
+          mine[c.id]?.qr ||
+            ''
         ),
       favorite:
-        !!findUserCardEntry(mine, c).favorite,
+        !!mine[c.id]?.favorite,
       owners
     });
   });
@@ -1867,8 +1848,7 @@ const SUPABASE_FILES = new Map([
   [path.resolve(DATA), 'cards'],
   [path.resolve(ADMIN_FILE), 'admin'],
   [path.resolve(USERS_FILE), 'users'],
-  [path.resolve(USER_DATA_FILE), 'user-data'],
-  [path.resolve(PASSKEYS_FILE), 'passkeys']
+  [path.resolve(USER_DATA_FILE), 'user-data']
 ]);
 let supabaseReady = false;
 let supabaseWriteQueue = Promise.resolve();
@@ -1957,6 +1937,9 @@ async function initializeSupabasePersistence() {
       supabaseLastWriteError = null;
       supabaseWriteQueue = supabaseWriteQueue
         .then(() => writeSupabaseValue(key, value))
+        .then(() => {
+          console.log(`[Supabase] ${key} の保存に成功しました`);
+        })
         .catch(error => {
           supabaseLastWriteError = error;
           console.error(`[Supabase] ${key} の保存に失敗:`, error.message);
@@ -1967,28 +1950,6 @@ async function initializeSupabasePersistence() {
   supabaseReady = true;
   console.log('[Supabase] 永続保存が有効です');
 }
-
-/* ===================== PASSKEY / WEBAUTHN ===================== */
-const pendingPasskeyChallenges = new Map();
-const loadPasskeys = () => {
-  try { return JSON.parse(fs.readFileSync(PASSKEYS_FILE, 'utf8')) || {}; }
-  catch { return {}; }
-};
-const savePasskeys = (value) => fs.writeFileSync(PASSKEYS_FILE, JSON.stringify(value, null, 2));
-const requestOrigin = (req) => {
-  const origin = String(req.headers.origin || '').replace(/\/$/, '');
-  if (origin) return origin;
-  const proto = (req.headers['x-forwarded-proto'] || 'https').toString().split(',')[0].trim();
-  return `${proto}://${req.headers.host}`;
-};
-const requestRpId = (req) => new URL(requestOrigin(req)).hostname;
-const passkeyUserId = (userId) => Buffer.from(String(userId)).toString('base64url');
-const getPasskeyCredential = (item) => ({
-  id: item.id,
-  publicKey: Buffer.from(item.publicKey, 'base64url'),
-  counter: Number(item.counter || 0),
-  transports: item.transports || []
-});
 
 /* ===================== HTTP SERVER ===================== */
 
@@ -2159,99 +2120,6 @@ const appServer = http.createServer(
               ''
           }
         );
-      }
-
-      /* ---------- パスキー登録・認証 ---------- */
-      if (url.pathname === '/api/passkey/register/options' && req.method === 'POST') {
-        const userId = getUserId(req);
-        if (!userId) return sendJson(res, 401, { error: 'パスキー登録には先にユーザー名・パスワードでログインしてください' });
-        const user = loadUsers().find(x => x.id === userId);
-        if (!user) return sendJson(res, 401, { error: 'ユーザーが見つかりません' });
-        const store = loadPasskeys();
-        const existing = store[userId] || [];
-        const origin = requestOrigin(req);
-        const rpID = requestRpId(req);
-        const options = await generateRegistrationOptions({
-          rpName: 'アイカツ！バインダー', rpID,
-          userID: Buffer.from(String(userId)), userName: String(user.username),
-          userDisplayName: String(user.username),
-          attestationType: 'none',
-          excludeCredentials: existing.map(x => ({ id: x.id, transports: x.transports || [] })),
-          authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
-          timeout: 60000
-        });
-        pendingPasskeyChallenges.set(`reg:${userId}`, { challenge: options.challenge, origin, rpID, createdAt: Date.now() });
-        return sendJson(res, 200, options);
-      }
-
-      if (url.pathname === '/api/passkey/register/verify' && req.method === 'POST') {
-        const userId = getUserId(req);
-        if (!userId) return sendJson(res, 401, { error: 'ログイン状態を確認できません。再ログインしてください' });
-        const pending = pendingPasskeyChallenges.get(`reg:${userId}`);
-        if (!pending || Date.now() - pending.createdAt > 5 * 60 * 1000) return sendJson(res, 400, { error: '登録の有効期限が切れました。もう一度お試しください' });
-        const body = await readBody(req);
-        const verification = await verifyRegistrationResponse({
-          response: body, expectedChallenge: pending.challenge,
-          expectedOrigin: pending.origin, expectedRPID: pending.rpID,
-          requireUserVerification: false
-        });
-        pendingPasskeyChallenges.delete(`reg:${userId}`);
-        if (!verification.verified || !verification.registrationInfo) return sendJson(res, 400, { error: 'パスキーを確認できませんでした' });
-        const info = verification.registrationInfo;
-        const credential = info.credential || {};
-        const id = credential.id || body.id;
-        const publicKey = credential.publicKey || info.credentialPublicKey;
-        const counter = credential.counter ?? info.counter ?? 0;
-        if (!id || !publicKey) return sendJson(res, 400, { error: 'パスキー情報を取得できませんでした' });
-        const store = loadPasskeys();
-        const list = store[userId] || [];
-        if (!list.some(x => x.id === id)) list.push({ id, publicKey: Buffer.from(publicKey).toString('base64url'), counter, transports: body.response?.transports || [], createdAt: new Date().toISOString() });
-        store[userId] = list;
-        savePasskeys(store);
-        await flushSupabaseWrites();
-        return sendJson(res, 200, { ok: true, message: 'この端末のパスキーを登録しました' });
-      }
-
-      if (url.pathname === '/api/passkey/login/options' && req.method === 'POST') {
-        const { username } = await readBody(req);
-        const user = findUser(username);
-        if (!user) return sendJson(res, 401, { error: 'ユーザー名を確認してください' });
-        const list = loadPasskeys()[user.id] || [];
-        if (!list.length) return sendJson(res, 404, { error: 'このユーザーにはパスキーが登録されていません。パスワードでログインして登録してください' });
-        const origin = requestOrigin(req);
-        const rpID = requestRpId(req);
-        const options = await generateAuthenticationOptions({
-          rpID, allowCredentials: list.map(x => ({ id: x.id, transports: x.transports || [] })),
-          userVerification: 'preferred', timeout: 60000
-        });
-        pendingPasskeyChallenges.set(`auth:${user.id}`, { challenge: options.challenge, origin, rpID, createdAt: Date.now() });
-        return sendJson(res, 200, options);
-      }
-
-      if (url.pathname === '/api/passkey/login/verify' && req.method === 'POST') {
-        const { username, credential } = await readBody(req);
-        const user = findUser(username);
-        if (!user) return sendJson(res, 401, { error: 'ユーザー名を確認してください' });
-        const pending = pendingPasskeyChallenges.get(`auth:${user.id}`);
-        if (!pending || Date.now() - pending.createdAt > 5 * 60 * 1000) return sendJson(res, 400, { error: '認証の有効期限が切れました。もう一度お試しください' });
-        const store = loadPasskeys();
-        const list = store[user.id] || [];
-        const saved = list.find(x => x.id === credential?.id);
-        if (!saved) return sendJson(res, 401, { error: 'このパスキーは登録されていません' });
-        const verification = await verifyAuthenticationResponse({
-          response: credential, expectedChallenge: pending.challenge,
-          expectedOrigin: pending.origin, expectedRPID: pending.rpID,
-          credential: getPasskeyCredential(saved), requireUserVerification: false
-        });
-        pendingPasskeyChallenges.delete(`auth:${user.id}`);
-        if (!verification.verified) return sendJson(res, 401, { error: 'パスキー認証に失敗しました' });
-        const newCounter = verification.authenticationInfo.newCounter;
-        saved.counter = newCounter;
-        store[user.id] = list;
-        savePasskeys(store);
-        await flushSupabaseWrites();
-        setCookie(res, 'aikatsu_user_sid', newSession('user', user.id, USER_SESSION_TTL), USER_SESSION_TTL / 1000);
-        return sendJson(res, 200, { ok: true, username: user.username });
       }
 
       if (
@@ -3508,6 +3376,7 @@ const appServer = http.createServer(
           req.method ===
             'PATCH'
         ) {
+          console.log(`[API] 所持・QR更新リクエストを受信しました: cardId=${parts[2]}`);
           const uid =
             requireUser(
               req,
@@ -3547,13 +3416,12 @@ const appServer = http.createServer(
             data[uid] ||
             {};
 
-          const currentCard = cards.find((c) => c.id === parts[2]);
-          const existingEntry = findUserCardEntry(data[uid], currentCard);
-          data[uid][parts[2]] = {
-            ...existingEntry,
-            ...(data[uid][parts[2]] || {}),
-            no: currentCard?.no || existingEntry.no || ''
-          };
+          data[uid][
+            parts[2]
+          ] =
+            data[uid][
+              parts[2]
+            ] || {};
 
           if (
             typeof body.qr ===
@@ -3623,50 +3491,6 @@ const appServer = http.createServer(
           return;
         }
 
-        /* ---------- 管理者向け：ユーザー別所持状況の取得・修正 ---------- */
-        if (parts[1] === 'ownership' && req.method === 'GET' && !parts[2]) {
-          const users = loadUsers().map((u) => ({ id: u.id, username: u.username }));
-          const userData = loadUserData();
-          const ownership = {};
-          for (const u of users) {
-            const bucket = userData[u.id] || {};
-            ownership[u.id] = {};
-            for (const card of cards) {
-              const entry = findUserCardEntry(bucket, card);
-              ownership[u.id][card.id] = !!entry.owned;
-            }
-          }
-          return sendJson(res, 200, { users, ownership });
-        }
-
-        if (parts[1] === 'ownership' && parts[2] && parts[3] && req.method === 'PATCH') {
-          const userId = decodeURIComponent(parts[2]);
-          const cardId = decodeURIComponent(parts[3]);
-          if (!loadUsers().some((u) => u.id === userId)) {
-            return sendJson(res, 404, { error: 'ユーザーが見つかりません' });
-          }
-          if (!cards.some((c) => c.id === cardId)) {
-            return sendJson(res, 404, { error: 'カードが見つかりません' });
-          }
-          const body = await readBody(req);
-          if (typeof body.owned !== 'boolean') {
-            return sendJson(res, 400, { error: 'owned は true または false を指定してください' });
-          }
-          const userData = loadUserData();
-          userData[userId] = userData[userId] || {};
-          const targetCard = cards.find((c) => c.id === cardId);
-          const existingEntry = findUserCardEntry(userData[userId], targetCard);
-          userData[userId][cardId] = {
-            ...existingEntry,
-            ...(userData[userId][cardId] || {}),
-            no: targetCard.no || existingEntry.no || '',
-            owned: body.owned
-          };
-          saveUserData(userData);
-          await flushSupabaseWrites();
-          return sendJson(res, 200, { ok: true, userId, cardId, owned: body.owned });
-        }
-
         /* ---------- 新規カード ---------- */
 
         if (
@@ -3691,7 +3515,6 @@ const appServer = http.createServer(
           save(
             cards
           );
-          await flushSupabaseWrites();
 
           return sendJson(
             res,
@@ -3753,7 +3576,6 @@ const appServer = http.createServer(
           save(
             cards
           );
-          await flushSupabaseWrites();
 
           return sendJson(
             res,
@@ -3783,7 +3605,6 @@ const appServer = http.createServer(
                 deletedId
             )
           );
-          await flushSupabaseWrites();
 
           const userData =
             loadUserData();
