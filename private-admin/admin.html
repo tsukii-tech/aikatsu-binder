@@ -28,10 +28,10 @@
   <!-- 管理者アプリ本体 -->
   <div id="admin-app" style="display:none">
     <div class="admin-tabs">
-      <button class="admin-tab-btn active" data-sub="list">カード設定・管理リスト</button>
-      <button class="admin-tab-btn" data-sub="data">データ追加・更新</button>
-      <button class="admin-tab-btn" data-sub="users">ユーザー管理</button>
-      <button class="admin-tab-btn" data-sub="account">アカウント情報</button>
+      <button class="admin-tab-btn active" data-sub="list"><span class="tab-icon">▤</span> カード管理</button>
+      <button class="admin-tab-btn" data-sub="data"><span class="tab-icon">＋</span> データ追加・更新</button>
+      <button class="admin-tab-btn" data-sub="users"><span class="tab-icon">♙</span> ユーザー管理</button>
+      <button class="admin-tab-btn" data-sub="account"><span class="tab-icon">⚙</span> 管理者設定</button>
     </div>
     <div class="admin-panel">
       <div class="admin-sub show" id="admin-sub-list"></div>
@@ -55,7 +55,7 @@
       <div class="form-group"><label>表面の画像URL</label><input id="ef-img" class="form-control"></div>
       <div class="form-group"><label>裏面の画像URL</label><input id="ef-imgback" class="form-control"></div>
       <div class="form-group"><label>アピール値 (AP・任意)</label><input type="number" id="ef-ap" class="form-control" value="400" min="0" max="9999"></div>
-      <p style="font-size:.78rem;color:#999;margin-top:-8px">QRコード・所持状況は管理者からは変更できません（一般ユーザーが自分でバインダー画面から入力します）。</p>
+      <p class="form-note">カードの基本情報を編集します。ユーザーごとの所持状態は「カード管理」から個別に修正できます。</p>
       <div style="display:flex;gap:10px">
         <button type="submit" class="btn-submit">保存する</button>
         <button type="button" class="btn-submit neutral" id="ef-cancel">キャンセル</button>
@@ -201,49 +201,96 @@ $('#edit-form').onsubmit = async (e) => {
 };
 
 /* --- カード設定・管理リスト --- */
+function rarityOf(card) {
+  const no = String(card.no || '').toUpperCase().replace(/\s/g, '');
+  return /(?:^|[_-])PR(?:$|[_-])/.test(no) || no.endsWith('PR') ? 'PR' : 'N';
+}
 function renderAdminList() {
   const box = $('#admin-sub-list'); if (!box) return;
-  box.innerHTML = `<input type="text" id="al-search" class="form-control admin-search" placeholder="ID・名前で検索"><div id="al-rows"></div>`;
-  const draw = () => {
-    const q = ($('#al-search').value || '').toLowerCase();
-    const list = cards.filter((c) => (c.name + ' ' + c.no).toLowerCase().includes(q));
-    $('#al-rows').innerHTML = list.length ? '' : '<p style="color:#aaa">該当するカードがありません</p>';
-    list.forEach((c) => {
-      const row = document.createElement('div'); row.className = 'admin-list-row'; row.dataset.id = c.id;
-      row.innerHTML = `
-        <img class="admin-thumb" ${imgAttrs(c)} alt="">
-        <div>
-          <div class="admin-row-head">
-            <span>${esc(c.no || '(ID未設定)')}</span>
-            ${c.series ? `<span class="series-pill">${esc(c.series)}</span>` : ''}
-          </div>
-          <div style="font-size:.8rem;color:#666;margin-bottom:6px">${esc(c.name)}</div>
-          <div class="chip-row" data-type-row>${TYPE_LIST.map((v) => `<div class="chip${v === c.type ? ' sel' : ''}" data-v="${v}">${TYPE_JA[v]}</div>`).join('')}</div>
-          <div class="chip-row" data-cat-row>${CAT_LIST.map((v) => `<div class="chip${v === c.category ? ' sel' : ''}" data-v="${esc(v)}">${esc(v)}</div>`).join('')}</div>
-          <div class="admin-row-actions">
-            <button class="mini-btn mini-edit" data-a="edit">くわしく編集</button>
-            <button class="mini-btn mini-del" data-a="del">削除</button>
-          </div>
-        </div>`;
-      $('#al-rows').appendChild(row);
-    });
+  box.innerHTML = `
+    <div class="admin-section-heading"><div><h3>カード管理</h3><p>絞り込み、カード情報の編集、ユーザーごとの所持状態の修正ができます。</p></div></div>
+    <div class="admin-filter-panel">
+      <div class="admin-filter-grid">
+        <label>シリーズ<select id="al-series" class="form-control"><option value="all">すべて</option></select></label>
+        <label>レアリティ<select id="al-rarity" class="form-control"><option value="all">すべて</option><option value="N">ノーマル（N）</option><option value="PR">プレミアム（PR）</option></select></label>
+        <label>タイプ<select id="al-type" class="form-control"><option value="all">すべて</option>${TYPE_LIST.map(v=>`<option value="${v}">${TYPE_JA[v]}</option>`).join('')}</select></label>
+        <label>服の種類<select id="al-cat" class="form-control"><option value="all">すべて</option>${CAT_LIST.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select></label>
+        <label>所持状態<select id="al-owned" class="form-control"><option value="all">すべて</option><option value="owned">所持あり</option><option value="unowned">未所持</option></select></label>
+        <label>ユーザー<select id="al-user" class="form-control"><option value="all">全ユーザー</option></select></label>
+        <label class="admin-search-label">カード名・ID<input type="search" id="al-search" class="form-control" placeholder="カード名やカード番号で検索"></label>
+      </div>
+      <div class="admin-filter-actions"><span id="al-result-count"></span><button type="button" class="nav-btn" id="al-reset">絞り込みをリセット</button></div>
+    </div>
+    <div id="al-rows" class="admin-card-list"></div>
+    <div id="al-ownership-editor" class="ownership-editor" hidden></div>`;
+
+  let ownershipData = { users: [], ownership: {} };
+  let selectedCardId = '';
+  const seriesSelect = $('#al-series');
+  [...new Set(cards.map(c=>c.series).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ja')).forEach(v=>seriesSelect.insertAdjacentHTML('beforeend',`<option value="${esc(v)}">${esc(v)}</option>`));
+  const setOptions = () => {
+    const select=$('#al-user');
+    select.innerHTML='<option value="all">全ユーザー</option>'+ownershipData.users.map(u=>`<option value="${esc(u.id)}">${esc(u.username)}</option>`).join('');
   };
-  draw();
-  $('#al-search').oninput = draw;
-  $('#al-rows').addEventListener('click', async (e) => {
-    const row = e.target.closest('.admin-list-row'); if (!row) return;
-    const id = row.dataset.id, card = cards.find((c) => c.id === id); if (!card) return;
-    const typeChip = e.target.closest('[data-type-row] .chip');
-    const catChip = e.target.closest('[data-cat-row] .chip');
-    try {
-      if (typeChip) { const saved = await api('cards/' + id, 'PUT', { type: typeChip.dataset.v }); cards = cards.map((c) => (c.id === id ? saved : c)); draw(); return; }
-      if (catChip) { const saved = await api('cards/' + id, 'PUT', { category: catChip.dataset.v }); cards = cards.map((c) => (c.id === id ? saved : c)); draw(); return; }
-      if (e.target.closest('[data-a="edit"]')) return openEditModal(card);
-      if (e.target.closest('[data-a="del"]') && confirm(`「${card.name}」を削除しますか？`)) {
-        await api('cards/' + id, 'DELETE'); cards = cards.filter((c) => c.id !== id); draw(); toast('削除しました');
-      }
-    } catch (err) { toast(err.message); }
+  const refreshOwnership = async () => {
+    try { ownershipData = await api('ownership'); setOptions(); }
+    catch (err) { toast('所持情報を読み込めませんでした：'+err.message); }
+  };
+  const draw = () => {
+    const q = ($('#al-search').value || '').trim().toLowerCase();
+    const series=$('#al-series').value, rarity=$('#al-rarity').value, type=$('#al-type').value, cat=$('#al-cat').value, owned=$('#al-owned').value, userId=$('#al-user').value;
+    const list = cards.filter(c => {
+      if(q && !(String(c.name||'')+' '+String(c.no||'')).toLowerCase().includes(q)) return false;
+      if(series!=='all' && String(c.series||'')!==series) return false;
+      if(rarity!=='all' && rarityOf(c)!==rarity) return false;
+      if(type!=='all' && c.type!==type) return false;
+      if(cat!=='all' && c.category!==cat) return false;
+      const ownedByUser = userId==='all' ? ownershipData.users.some(u=>ownershipData.ownership?.[u.id]?.[c.id]) : !!ownershipData.ownership?.[userId]?.[c.id];
+      if(owned==='owned' && !ownedByUser) return false;
+      if(owned==='unowned' && ownedByUser) return false;
+      if(userId!=='all' && !ownershipData.ownership?.[userId]?.[c.id]) return false;
+      return true;
+    });
+    $('#al-result-count').textContent=`${list.length} 件`;
+    const rows=$('#al-rows'); rows.innerHTML=list.length?'':'<p class="empty-state">条件に合うカードがありません。</p>';
+    list.forEach(c=>{
+      const owners=ownershipData.users.filter(u=>ownershipData.ownership?.[u.id]?.[c.id]);
+      const row=document.createElement('article'); row.className='admin-card-row'; row.dataset.id=c.id;
+      row.innerHTML=`<img class="admin-thumb" ${imgAttrs(c)} alt=""><div class="admin-card-main"><div class="admin-row-head"><strong>${esc(c.name||c.no||'名称未設定')}</strong><span class="series-pill">${esc(c.series||'シリーズ未設定')}</span><span class="rarity-pill ${rarityOf(c)==='PR'?'premium':''}">${rarityOf(c)}</span></div><div class="admin-card-meta">${esc(c.no||'ID未設定')} ・ ${esc(TYPE_JA[c.type]||c.type||'タイプ未設定')} ・ ${esc(c.category||'服の種類未設定')}</div><div class="admin-owners-preview"><strong>所持者（${owners.length}人）</strong><span>${owners.length?owners.map(u=>esc(u.username)).join('、'):'所持者はいません'}</span></div><div class="admin-row-actions"><button class="mini-btn mini-edit" data-a="edit">カード情報を編集</button><button class="mini-btn ownership-btn" data-a="ownership">所持状況を管理</button><button class="mini-btn mini-del" data-a="del">削除</button></div></div>`;
+      rows.appendChild(row);
+    });
+    if(selectedCardId && list.some(c=>c.id===selectedCardId)) drawOwnershipEditor(selectedCardId);
+    else { $('#al-ownership-editor').hidden=true; selectedCardId=''; }
+  };
+  async function drawOwnershipEditor(cardId) {
+    selectedCardId=cardId;
+    const card=cards.find(c=>c.id===cardId); const editor=$('#al-ownership-editor');
+    if(!card){editor.hidden=true;return;}
+    editor.hidden=false;
+    editor.innerHTML=`<div class="ownership-editor-heading"><div><span class="eyebrow">所持状況の修正</span><h3>${esc(card.name||card.no)}</h3><p>誤って登録された所持状態を、ユーザーごとに解除・登録できます。</p></div><button type="button" class="nav-btn" id="al-own-close">閉じる</button></div><div class="ownership-user-list">${ownershipData.users.map(u=>{const isOwned=!!ownershipData.ownership?.[u.id]?.[cardId];return `<div class="ownership-user-row"><div><strong>${esc(u.username)}</strong><small>${isOwned?'所持済み':'未所持'}</small></div><button type="button" class="ownership-toggle ${isOwned?'is-owned':''}" data-user="${esc(u.id)}" data-owned="${isOwned?'true':'false'}">${isOwned?'所持を解除':'所持に登録'}</button></div>`}).join('')||'<p class="empty-state">登録ユーザーがいません。</p>'}</div>`;
+    $('#al-own-close').onclick=()=>{selectedCardId='';editor.hidden=true;};
+    editor.querySelectorAll('[data-user]').forEach(btn=>btn.onclick=async()=>{
+      const userId=btn.dataset.user, owned=btn.dataset.owned!=='true';
+      btn.disabled=true;
+      try {
+        await api(`ownership/${encodeURIComponent(userId)}/${encodeURIComponent(cardId)}`,'PATCH',{owned});
+        ownershipData.ownership[userId]=ownershipData.ownership[userId]||{}; ownershipData.ownership[userId][cardId]=owned;
+        toast(owned?'所持状態を登録しました':'所持状態を解除しました'); draw(); drawOwnershipEditor(cardId);
+      } catch(err){toast('保存できませんでした：'+err.message);btn.disabled=false;}
+    });
+  }
+  ['al-search','al-series','al-rarity','al-type','al-cat','al-owned','al-user'].forEach(id=>$('#'+id).addEventListener(id==='al-search'?'input':'change',draw));
+  $('#al-reset').onclick=()=>{['al-series','al-rarity','al-type','al-cat','al-owned','al-user'].forEach(id=>$('#'+id).value='all');$('#al-search').value='';draw();};
+  $('#al-rows').addEventListener('click',async e=>{
+    const row=e.target.closest('.admin-card-row');if(!row)return;
+    const id=row.dataset.id,card=cards.find(c=>c.id===id);if(!card)return;
+    if(e.target.closest('[data-a="edit"]')) return openEditModal(card);
+    if(e.target.closest('[data-a="ownership"]')) { await drawOwnershipEditor(id); $('#al-ownership-editor').scrollIntoView({behavior:'smooth',block:'nearest'}); return; }
+    if(e.target.closest('[data-a="del"]')&&confirm(`「${card.name}」を削除しますか？`)){
+      try{await api('cards/'+id,'DELETE');cards=cards.filter(c=>c.id!==id);await refreshOwnership();draw();toast('削除しました');}catch(err){toast(err.message);}
+    }
   });
+  refreshOwnership().then(draw);
 }
 
 /* --- データ追加・更新 --- */
@@ -579,7 +626,7 @@ function renderAdminAccount() {
     <div class="form-group"><label>アイコン</label><div class="chip-row" id="ac-icons"></div></div>
     <button class="btn-submit secondary" id="ac-save" style="margin-bottom:20px">設定を保存</button>
     <hr style="border:0;border-top:1px solid #eee;margin-bottom:20px">
-    <p style="font-size:.85rem;color:#555">ログインは12時間で自動的に切れます。この管理サイトはパソコンからのアクセスのみ利用できます。</p>
+    <p style="font-size:.85rem;color:#555">ログイン時間・ログイン回数の制限はありません。この管理サイトはパソコンからのアクセスのみ利用できます。</p>
     <button class="btn-submit neutral" id="ac-logout">ログアウト</button>
   `;
   let selectedColor = 'pink', selectedIcon = 'heart', colors = ['pink','red','orange','yellow','blue','purple'], icons = ['heart','diamond','spade','club'];

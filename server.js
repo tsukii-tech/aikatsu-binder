@@ -3491,6 +3491,45 @@ const appServer = http.createServer(
           return;
         }
 
+        /* ---------- 管理者向け：ユーザー別所持状況の取得・修正 ---------- */
+        if (parts[1] === 'ownership' && req.method === 'GET' && !parts[2]) {
+          const users = loadUsers().map((u) => ({ id: u.id, username: u.username }));
+          const userData = loadUserData();
+          const ownership = {};
+          for (const u of users) {
+            const bucket = userData[u.id] || {};
+            ownership[u.id] = {};
+            for (const card of cards) {
+              const entry = bucket[card.id] || Object.values(bucket).find((v) => v && v.no && String(v.no) === String(card.no)) || {};
+              ownership[u.id][card.id] = !!entry.owned;
+            }
+          }
+          return sendJson(res, 200, { users, ownership });
+        }
+
+        if (parts[1] === 'ownership' && parts[2] && parts[3] && req.method === 'PATCH') {
+          const userId = decodeURIComponent(parts[2]);
+          const cardId = decodeURIComponent(parts[3]);
+          if (!loadUsers().some((u) => u.id === userId)) {
+            return sendJson(res, 404, { error: 'ユーザーが見つかりません' });
+          }
+          if (!cards.some((c) => c.id === cardId)) {
+            return sendJson(res, 404, { error: 'カードが見つかりません' });
+          }
+          const body = await readBody(req);
+          if (typeof body.owned !== 'boolean') {
+            return sendJson(res, 400, { error: 'owned は true または false を指定してください' });
+          }
+          const userData = loadUserData();
+          userData[userId] = userData[userId] || {};
+          userData[userId][cardId] = userData[userId][cardId] || {};
+          userData[userId][cardId].no = cards.find((c) => c.id === cardId).no || '';
+          userData[userId][cardId].owned = body.owned;
+          saveUserData(userData);
+          await flushSupabaseWrites();
+          return sendJson(res, 200, { ok: true, userId, cardId, owned: body.owned });
+        }
+
         /* ---------- 新規カード ---------- */
 
         if (
@@ -3897,46 +3936,29 @@ const appServer = http.createServer(
        * /admin
        *   → admin.html
        */
-      let reqPath =
-        url.pathname === '/'
+      let file;
+      let allowedRoot;
+
+      if (url.pathname === '/admin') {
+        file = path.join(__dirname, 'private-admin', 'admin.html');
+        allowedRoot = path.resolve(__dirname, 'private-admin');
+      } else if (url.pathname === '/admin.css') {
+        file = path.join(__dirname, 'private-admin', 'admin.css');
+        allowedRoot = path.resolve(__dirname, 'private-admin');
+      } else {
+        const reqPath = url.pathname === '/'
           ? 'index.html'
-          : url.pathname ===
-              '/admin'
-            ? 'admin.html'
-            : decodeURIComponent(
-                url.pathname
-              ).replace(
-                /^\/+/,
-                ''
-              );
+          : decodeURIComponent(url.pathname).replace(/^\/+/, '');
+        file = path.join(PUB, reqPath);
+        allowedRoot = path.resolve(PUB);
+      }
 
-      const file =
-        path.join(
-          PUB,
-          reqPath
-        );
+      const resolved = path.resolve(file);
 
-      const publicRoot =
-        path.resolve(
-          PUB
-        );
-
-      const resolved =
-        path.resolve(
-          file
-        );
-
-      /*
-       * publicフォルダ外への
-       * パストラバーサルを防止。
-       */
+      /* public/private-adminフォルダ外へのパストラバーサルを防止。 */
       if (
-        resolved !==
-          publicRoot &&
-        !resolved.startsWith(
-          publicRoot +
-            path.sep
-        )
+        resolved !== allowedRoot &&
+        !resolved.startsWith(allowedRoot + path.sep)
       ) {
         res.writeHead(
           403
