@@ -1,27 +1,31 @@
 {
   "87df9d5a2792f7aa07ed629eac1465eb": {
     "1790255553941-0": {
-      "owned": true,
+      "owned": false,
       "favorite": false,
-      "qr": ""
+      "qr": "",
+      "no": "E1-01_PR"
     },
     "1790255553942-2": {
       "owned": false,
       "favorite": false
     },
     "1790255553942-1": {
-      "owned": true,
-      "favorite": true
+      "owned": false,
+      "favorite": true,
+      "no": "E1-02_PR"
     },
     "1790255553942-3": {
       "owned": false,
       "favorite": true
     },
     "1790255553942-5": {
-      "owned": true
+      "owned": false,
+      "no": "E1-06_R"
     },
     "1790255553942-6": {
-      "owned": true
+      "owned": false,
+      "no": "E1-07_R"
     },
     "1790255553942-4": {
       "owned": false
@@ -52,7 +56,8 @@
     },
     "1790255553942-7": {
       "favorite": false,
-      "owned": true
+      "owned": false,
+      "no": "E1-08_R"
     },
     "1790255553955-46": {
       "favorite": false,
