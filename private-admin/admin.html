@@ -67,6 +67,70 @@
 <div id="toast"></div>
 
 <script>
+/* 緊急フォールバック：メインスクリプトの一部に不具合があっても保存ボタンから直接APIを呼び出す */
+(() => {
+  const form = document.getElementById('edit-form');
+  if (!form) return;
+  let saving = false;
+  async function emergencySave(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    }
+    if (saving) return;
+    const button = form.querySelector('button[type="submit"]');
+    const value = (id) => (document.getElementById(id)?.value || '').trim();
+    const no = value('ef-no');
+    if (!no) { alert('ID（カード番号）を入力してください。'); document.getElementById('ef-no')?.focus(); return; }
+    const apText = value('ef-ap');
+    const ap = apText === '' ? 400 : Number(apText);
+    if (!Number.isFinite(ap) || ap < 0 || ap > 9999) { alert('APは0〜9999の数値を入力してください。'); return; }
+    const selected = (id, fallback) => document.querySelector('#' + id + ' .chip.sel')?.dataset.v || fallback;
+    const body = {
+      no,
+      name: value('ef-name') || no,
+      type: selected('ef-type-chips', 'cute'),
+      category: selected('ef-cat-chips', 'トップス'),
+      img: value('ef-img'),
+      imgBack: value('ef-imgback'),
+      ap
+    };
+    const id = value('ef-id');
+    saving = true;
+    if (button) { button.disabled = true; button.textContent = '保存中…'; }
+    try {
+      const response = await fetch('/api/cards' + (id ? '/' + encodeURIComponent(id) : ''), {
+        method: id ? 'PUT' : 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || ('HTTP ' + response.status));
+      if (!result || !result.id) throw new Error('サーバーから保存結果が返りませんでした');
+      alert('カード情報を保存しました。管理画面を再読み込みします。');
+      window.location.reload();
+    } catch (error) {
+      console.error('[緊急保存処理]', error);
+      alert('保存できませんでした。\n' + (error?.message || error) + '\n\n画面は閉じずに、入力内容を控えてください。');
+    } finally {
+      saving = false;
+      if (button) { button.disabled = false; button.textContent = '保存する'; }
+    }
+  }
+  // ボタンのクリックを捕捉。メインスクリプトのイベント登録に依存しない。
+  form.addEventListener('click', (event) => {
+    const button = event.target.closest('button[type="submit"]');
+    if (!button) return;
+    emergencySave(event);
+  }, true);
+  // Enterキーなど、通常のフォーム送信も捕捉する。
+  form.addEventListener('submit', emergencySave, true);
+})();
+</script>
+
+<script>
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const TYPE_LIST = ['cute', 'cool', 'sexy', 'pop'];
