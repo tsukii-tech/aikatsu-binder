@@ -3560,15 +3560,10 @@ const appServer = http.createServer(
 
           cards.push(c);
 
-          save(
-            cards
-          );
+          save(cards);
+          await flushSupabaseWrites();
 
-          return sendJson(
-            res,
-            201,
-            withSeries(c)
-          );
+          return sendJson(res, 201, withSeries(c));
         }
 
         /* ---------- カード編集 ---------- */
@@ -3621,17 +3616,10 @@ const appServer = http.createServer(
               old.id
             );
 
-          save(
-            cards
-          );
+          save(cards);
+          await flushSupabaseWrites();
 
-          return sendJson(
-            res,
-            200,
-            withSeries(
-              cards[i]
-            )
-          );
+          return sendJson(res, 200, withSeries(cards[i]));
         }
 
         /* ---------- カード削除 ---------- */
