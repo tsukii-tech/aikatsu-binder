@@ -230,9 +230,12 @@ editForm.addEventListener('submit', async (e) => {
     $('#edit-modal').classList.remove('active');
     renderAdminList();
     toast('保存しました ✨');
+    alert('カード情報を保存しました。');
   } catch (err) {
     console.error('[カード保存エラー]', err);
-    toast('保存できませんでした：' + (err?.message || '通信エラー'));
+    const message = '保存できませんでした：' + (err?.message || '通信エラー');
+    toast(message);
+    alert(message + '\n\n入力内容は保存されていません。Renderのログも確認してください。');
   } finally {
     editSaveInProgress = false;
     editSaveButton.disabled = false;
