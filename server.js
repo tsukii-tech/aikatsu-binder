@@ -224,18 +224,27 @@ const stripPublicOnlyFields = (body) => {
   return b;
 };
 
-const sendJson = (res, code, obj) => {
+const sendJson = async (res, code, obj) => {
+  // 保存APIは、Supabaseへの書き込み完了を確認してから成功レスポンスを返す。
+  // これにより、画面上は保存成功なのにクラウド保存が失敗している状態を防ぐ。
+  try {
+    if (code >= 200 && code < 300 && SUPABASE_ENABLED && supabaseReady) {
+      await flushSupabaseWrites();
+    }
+  } catch (error) {
+    console.error('[保存] Supabaseへの保存を確認できませんでした:', error.message);
+    code = 502;
+    obj = { error: 'Supabaseへの保存に失敗しました。Render Logsを確認してください。' };
+  }
+
+  if (res.writableEnded) return;
   res.writeHead(code, {
-    'Content-Type':
-      'application/json; charset=utf-8',
+    'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
     'Pragma': 'no-cache',
     'Expires': '0'
   });
-
-  res.end(
-    JSON.stringify(obj)
-  );
+  res.end(JSON.stringify(obj));
 };
 
 const readBody = (req) =>

@@ -5,4 +5,6 @@ data/users.json
 data/user-data.json
 
 .DS_Store
-.env　
+.env
+README_移行手順.txt
+RENDER永続化手順.md

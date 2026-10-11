@@ -1,1 +1,8 @@
-{}
+{
+  "username": "admin",
+  "salt": "",
+  "hash": "",
+  "color": "pink",
+  "icon": "heart",
+  "updatedAt": 1791717518339
+}
